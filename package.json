@@ -11,6 +11,7 @@
     "qr": "node src/index.js --qr",
     "check": "node src/check.js",
     "history": "node src/history.js",
+    "teste": "node src/index.js --send-test",
     "test": "node --test"
   },
   "dependencies": {

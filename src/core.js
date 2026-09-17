@@ -66,6 +66,10 @@ export function validateState(s) {
         !r.used.every(x => typeof x === 'string') || !(r.lastHash === null || typeof r.lastHash === 'string'))
       throw Error('Historico de frases invalido. Restaure o backup sem apagar o historico de envios.');
   }
+  if (s.testHistory !== undefined && (!Array.isArray(s.testHistory) || !s.testHistory.every(x =>
+      x && /^\d{4}-\d{2}-\d{2}$/.test(x.day) && typeof x.id === 'string' &&
+      ['attempting', 'submitted', 'uncertain'].includes(x.status))))
+    throw Error('Historico de testes invalido. Restaure o backup.');
   return s;
 }
 export async function loadState() { return validateState(await readJSON(paths.state, emptyState())); }
@@ -111,8 +115,8 @@ export function chooseGif(files, state, pick = randomInt) {
   if (different.length) pool = different;
   return { gif: pool[pick(pool.length)], reset };
 }
-export function reserve(state, selection, day, recipient, id) {
-  if (state.history.some(x => x.day === day)) throw Error('Dia ja reservado.');
+export function reserve(state, selection, day, recipient, id, manualTest = false) {
+  if (!manualTest && state.history.some(x => x.day === day)) throw Error('Dia ja reservado.');
   const next = structuredClone(state);
   if (selection.reset) { next.used = []; next.cycle++; }
   next.used.push(selection.gif.hash);
@@ -124,7 +128,8 @@ export function reserve(state, selection, day, recipient, id) {
     next.captionRotation.used.push(caption.hash);
     next.captionRotation.lastHash = caption.hash;
   }
-  next.history.push({ day, id, recipient, file: selection.gif.name, hash: selection.gif.hash,
+  const history = manualTest ? (next.testHistory ??= []) : next.history;
+  history.push({ day, id, recipient, mode: manualTest ? 'test' : 'scheduled', file: selection.gif.name, hash: selection.gif.hash,
     ...(caption ? { caption: caption.text, captionHash: caption.hash,
       captionCycle: caption.fixed ? null : next.captionRotation.cycle } : {}),
     cycle: next.cycle, status: 'attempting', attemptedAt: new Date().toISOString() });
@@ -132,11 +137,11 @@ export function reserve(state, selection, day, recipient, id) {
 }
 
 // A reserva e persistida ANTES de chamar qualquer envio. Falhas ambiguas consomem o dia.
-export async function dispatch({ state, selection, day, recipient, id, persist, send }) {
-  const next = reserve(state, selection, day, recipient, id);
+export async function dispatch({ state, selection, day, recipient, id, persist, send, manualTest = false }) {
+  const next = reserve(state, selection, day, recipient, id, manualTest);
   await persist(next);
   Object.assign(state, next);
-  const record = state.history.at(-1);
+  const record = (manualTest ? state.testHistory : state.history).at(-1);
   try {
     const message = await send();
     if (!message?.key?.id) throw Error('Baileys retornou sem identificador de mensagem.');

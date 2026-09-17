@@ -3,7 +3,7 @@ import pino from 'pino';
 import qr from 'qrcode-terminal';
 import { mkdir, readFile, unlink, access } from 'node:fs/promises';
 import path from 'node:path';
-import { paths, loadConfig, loadState, saveState, readJSON, atomicWrite, dueDay, listGifs, chooseGif, dispatch } from './core.js';
+import { paths, loadConfig, loadState, saveState, readJSON, atomicWrite, dueDay, clockParts, listGifs, chooseGif, dispatch } from './core.js';
 import { localAuth, hasPairedSession } from './auth.js';
 import { prepareMedia } from './media.js';
 import { instanceLock, log } from './runtime.js';
@@ -11,8 +11,9 @@ import { loadCaptions, chooseCaption } from './captions.js';
 
 process.umask(0o077);
 const args = process.argv.slice(2);
-if (args.some(x => !['--pair', '--qr'].includes(x)) || args.length > 1) throw Error('Use npm start, npm run pair ou npm run qr.');
-const pairing = args.length > 0;
+if (args.some(x => !['--pair', '--qr', '--send-test'].includes(x)) || args.length > 1) throw Error('Use npm start, npm run pair, npm run qr ou npm run teste.');
+const pairing = args.includes('--pair') || args.includes('--qr');
+const manualTest = args.includes('--send-test');
 const config = await loadConfig();
 const lock = await instanceLock();
 await mkdir(paths.data, { recursive: true, mode: 0o700 });
@@ -20,12 +21,14 @@ const pausedFile = path.join(paths.data, 'PAUSED');
 const messagesFile = path.join(paths.data, 'messages.json');
 let socket, reconnectTimer, timer, stopping = false, online = false, backoff = 0;
 let job = null, nextTry = 0;
+let testStarted = false, testTimeout;
 let auth;
 
 async function stop(code = 0) {
   if (stopping) return;
   stopping = true; online = false;
   clearTimeout(reconnectTimer); clearInterval(timer);
+  clearTimeout(testTimeout);
   const deadline = setTimeout(() => process.exit(code), 10_000);
   try {
     if (job) await job;
@@ -62,13 +65,15 @@ try {
   const captions = await loadCaptions(config);
   const messages = await readJSON(messagesFile, {});
   if (!messages || typeof messages !== 'object' || Array.isArray(messages)) throw Error('Cache de mensagens invalido.');
-  for (const item of state.history.filter(x => x.status === 'attempting')) item.status = 'uncertain';
+  for (const item of [...state.history, ...(state.testHistory ?? [])].filter(x => x.status === 'attempting')) item.status = 'uncertain';
   await saveState(state);
 
   async function tick() {
     if (pairing || !online || stopping || job || Date.now() < nextTry) return;
-    const day = dueDay(new Date(), config, state);
+    if (manualTest && testStarted) return;
+    const day = manualTest ? clockParts(new Date(), config.timeZone).day : dueDay(new Date(), config, state);
     if (!day) return;
+    if (manualTest) testStarted = true;
     job = (async () => {
       const current = socket;
       let selection, content, jid;
@@ -83,13 +88,14 @@ try {
         jid = target.jid;
       } catch (e) {
         nextTry = Date.now() + 5 * 60_000;
-        log('falha_preparacao', { error: e.message, retryInMinutes: 5 });
+        log('falha_preparacao', { error: e.message, retryInMinutes: manualTest ? null : 5 });
         return;
       }
       // Uma conversao lenta ou reconexao nao pode atravessar a janela de envio.
-      if (!online || current !== socket || stopping || dueDay(new Date(), config, state) !== day) return;
+      if (!online || current !== socket || stopping || (!manualTest && dueDay(new Date(), config, state) !== day)) return;
+      if (manualTest) console.log('Enviando teste real: ' + selection.gif.name + '\n' + selection.caption.text);
       const id = generateMessageIDV2(current.user?.id);
-      const record = await dispatch({ state, selection, day, recipient: config.recipientNumber, id,
+      const record = await dispatch({ state, selection, day, recipient: config.recipientNumber, id, manualTest,
         persist: saveState,
         send: async () => {
           const sent = await current.sendMessage(jid, content, { messageId: id });
@@ -102,9 +108,17 @@ try {
           return sent;
         }
       });
-      log(record.status, { day, file: record.file, id, error: record.error });
+      log(record.status, { day, file: record.file, id, mode: manualTest ? 'test' : 'scheduled', error: record.error });
+      return record;
     })();
-    try { await job; } catch (e) { await fatal(e); } finally { job = null; }
+    let result;
+    try { result = await job; } catch (e) { await fatal(e); } finally { job = null; }
+    if (manualTest && !stopping) {
+      console.log(result?.status === 'submitted'
+        ? 'Teste enviado ao WhatsApp. A agenda diaria continua preservada.'
+        : 'Teste nao confirmado. Confira os logs e a conversa antes de tentar novamente.');
+      await stop(result?.status === 'submitted' ? 0 : 1);
+    }
   }
 
   function reconnect() {
@@ -166,6 +180,13 @@ try {
       log('ativo', { online, enabled: config.enabled });
     void tick();
   }, 15_000);
-  log('iniciado', { mode: pairing ? args[0] : 'agendado' });
+  log('iniciado', { mode: pairing ? args[0] : manualTest ? 'test' : 'agendado' });
+  if (manualTest) {
+    console.log('TESTE REAL: envia uma mensagem ao contato configurado, mesmo fora do horario, com enabled=false ou apos o envio diario.');
+    testTimeout = setTimeout(() => {
+      console.error('Tempo de teste esgotado. Confira o historico e a conversa antes de repetir.');
+      void stop(1);
+    }, 5 * 60_000);
+  }
   await connect();
 } catch (e) { console.error(e.message); await stop(1); }

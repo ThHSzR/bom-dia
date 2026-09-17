@@ -226,7 +226,40 @@ Edite `config.json` e coloque `"enabled": true`. Para testar em primeiro plano:
 npm start
 ```
 
-**Se já estiver dentro da janela do dia e ainda não houver registro, ele enviará assim que conectar.** Para um primeiro teste controlado, configure um horário alguns minutos à frente. O primeiro envio conta normalmente para o histórico do dia; não existe comando que ignore a proteção diária.
+**Se já estiver dentro da janela do dia e ainda não houver registro, ele enviará assim que conectar.** Para testar a agenda, configure um horário alguns minutos à frente. Esse envio conta normalmente no histórico do dia. Para um envio extra imediato, use o modo manual abaixo.
+
+### Enviar agora para testar a randomização
+
+**`npm run teste` envia uma mensagem REAL para `recipientNumber`.** Não confunda com `npm test`, que executa testes automatizados sem enviar nada.
+
+| Comando | Comportamento |
+| --- | --- |
+| `npm test` | Testes de código offline, sem envio. |
+| `npm run check` | Prévia e conversão local, sem envio. |
+| `npm run teste` | Um envio real imediato, mesmo que já tenha enviado hoje. |
+| `npm start` | Agenda normal, no máximo uma tentativa diária. |
+
+Pare o serviço antes de testar, para não abrir duas instâncias:
+
+```bash
+. "$PREFIX/etc/profile.d/start-services.sh"
+sv down bom-dia
+cd "$HOME/bom-dia"
+npm run teste
+```
+
+O comando conecta com a sessão já salva, sorteia o próximo GIF e a próxima frase, exibe a legenda no terminal, tenta enviar uma única mensagem e termina. Respeita `captionMode`: no padrão `random` sorteia; se você tiver escolhido `fixed`, usa `caption`. Ignora o horário, `enabled` e o limite diário somente nesta execução explícita. Não precisa alterar o `config.json` nem apagar o histórico.
+
+Os testes ficam em `testHistory` no `data/state.json` e aparecem separados em `npm run history`. **Consomem os ciclos de GIFs e frases**, mas não alteram os registros agendados: se o envio diário já ocorreu, continua bloqueado; se ainda não ocorreu, poderá acontecer normalmente no horário. Ao executar o comando novamente, você autoriza outro envio extra. Falhas não disparam outra tentativa automática; confira o histórico e a conversa antes de repetir um teste incerto. Sem conclusão, o teste encerra após aproximadamente cinco minutos, mais até dez segundos para finalizar.
+
+Ao terminar, reative o serviço, mesmo se o teste falhar:
+
+```bash
+sv up bom-dia
+sv status bom-dia
+```
+
+Se estiver rodando `npm start` manualmente, encerre com Ctrl+C antes de executar `npm run teste`. Um arquivo `data/PAUSED` continua exigindo corrigir a causa; o teste não ignora pausas por erro de sessão ou de persistência.
 
 Depois de conferir, encerre com Ctrl+C e instale o serviço:
 
@@ -393,7 +426,7 @@ bom-dia/
 
 ## Validação realizada
 
-20 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
+24 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, envio manual extra sem alterar a agenda, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
 
 Os testes automatizados não fazem login nem enviam mensagens reais. Na instalação manual em um Android antigo, o usuário confirmou o funcionamento após a correção do reconhecimento da sessão e confirmou a solução do erro de localização do serviço ao carregar `start-services.sh` no terminal. Isso não substitui a verificação de reinício automático e execução com tela apagada em cada aparelho. Há um workflow de testes Linux no repositório para cada push e pull request.
 
