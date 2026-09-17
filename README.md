@@ -191,6 +191,7 @@ Uma falha ambígua também consome o GIF no ciclo. Uma falha antes da reserva, c
 
 ## Recuperação e manutenção
 
+- **`npm run pair` conecta, mas `npm start` pede para vincular de novo**: atualize com `git pull --ff-only` e execute `npm start`. A primeira versão verificava apenas `registered`, que pode continuar falso após o pareamento. A correção reconhece a identidade assinada já salva, sem apagar a sessão ou exigir novo QR.
 - **`data/PAUSED`**: pare o serviço e leia o arquivo e os logs. Corrija a causa antes de retomar. Para uma falha de disco ou configuração já corrigida, preserve o histórico, remova apenas `data/PAUSED` e execute `sv-enable bom-dia`.
 - **Logout, sessão inválida ou aparelho desvinculado**: pare o serviço, mova `data/auth` para um backup privado e execute `npm run pair`. Uma vinculação concluída remove a pausa. Depois execute `sv-enable bom-dia`. Não mova nem apague `data/state.json`.
 - **Outra instância ativa**: pare o serviço antes de usar `pair`, `qr` ou `check`. A porta local 39471 serve somente como trava, não como API ou painel.
@@ -249,7 +250,7 @@ bom-dia/
 
 ## Validação realizada
 
-12 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
+13 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
 
 **Não houve login nem envio real a uma conta.** O pareamento, o envio ao contato, o serviço runit e o comportamento em segundo plano precisam ser confirmados no aparelho Android. Há um workflow de testes Linux no repositório para cada push e pull request.
 

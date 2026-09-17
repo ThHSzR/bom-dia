@@ -3,6 +3,14 @@ import path from 'node:path';
 import { BufferJSON, initAuthCreds, proto } from '@whiskeysockets/baileys';
 import { atomicWrite } from './core.js';
 
+// O Baileys pode abrir a conexao antes de atualizar `registered`.
+// O pareamento concluido salva a identidade da conta e sua assinatura de dispositivo.
+// `me` sozinho nao basta: requestPairingCode o preenche antes da confirmacao.
+export function hasPairedSession(creds) {
+  return typeof creds?.me?.id === 'string' && creds.me.id.length > 0 &&
+    Boolean(creds.account?.deviceSignature?.length);
+}
+
 // Adaptador local para um bot pequeno. Escritas serializadas e atomicas;
 // JSON corrompido causa erro, nunca um novo login silencioso.
 export async function localAuth(dir) {

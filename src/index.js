@@ -4,7 +4,7 @@ import qr from 'qrcode-terminal';
 import { mkdir, readFile, unlink, access } from 'node:fs/promises';
 import path from 'node:path';
 import { paths, loadConfig, loadState, saveState, readJSON, atomicWrite, dueDay, listGifs, chooseGif, dispatch } from './core.js';
-import { localAuth } from './auth.js';
+import { localAuth, hasPairedSession } from './auth.js';
 import { prepareMedia } from './media.js';
 import { instanceLock, log } from './runtime.js';
 
@@ -56,7 +56,7 @@ try {
     catch (e) { if (e.code !== 'ENOENT') throw e; }
   }
   auth = await localAuth(paths.auth);
-  if (!pairing && !auth.state.creds.registered) throw Error('Vincule primeiro com npm run pair ou npm run qr.');
+  if (!pairing && !hasPairedSession(auth.state.creds)) throw Error('Vincule primeiro com npm run pair ou npm run qr.');
   const state = await loadState();
   const messages = await readJSON(messagesFile, {});
   if (!messages || typeof messages !== 'object' || Array.isArray(messages)) throw Error('Cache de mensagens invalido.');
@@ -128,7 +128,7 @@ try {
     current.ev.on('connection.update', update => {
       (async () => {
         if (stopping || current !== socket) return;
-        if (update.qr && !auth.state.creds.registered) {
+        if (update.qr && !hasPairedSession(auth.state.creds)) {
           if (!pairing) return fatal(Error('Sessao exige novo vinculo.'));
           if (args[0] === '--qr') qr.generate(update.qr, { small: true });
           else if (!codeRequested) {

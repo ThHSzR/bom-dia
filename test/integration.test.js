@@ -6,9 +6,28 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import os from 'node:os';
 import { generateWAMessageContent, proto } from '@whiskeysockets/baileys';
-import { localAuth } from '../src/auth.js';
+import { localAuth, hasPairedSession } from '../src/auth.js';
 import { prepareMedia } from '../src/media.js';
 const exec = promisify(execFile);
+
+test('reinicio aceita pareamento salvo antes de registered mudar para true', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'bom-dia-pairing-'));
+  try {
+    const auth = await localAuth(dir);
+    assert.equal(hasPairedSession(auth.state.creds), false);
+    // Pedir um codigo ainda nao e concluir a vinculacao.
+    auth.state.creds.me = { id: '5511999999999@s.whatsapp.net', name: '~' };
+    await auth.saveCreds();
+    assert.equal(hasPairedSession((await localAuth(dir)).state.creds), false);
+    // configureSuccessfulPairing adiciona account, mas nao altera registered.
+    auth.state.creds.account = { deviceSignature: Buffer.alloc(64, 1) };
+    await auth.saveCreds();
+    const restored = await localAuth(dir);
+    assert.equal(restored.state.creds.registered, false);
+    assert.equal(hasPairedSession(restored.state.creds), true);
+    assert.equal(hasPairedSession({ registered: true }), false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
 test('sessao e chaves Signal persistem, incluindo escritas concorrentes', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'bom-dia-auth-'));
