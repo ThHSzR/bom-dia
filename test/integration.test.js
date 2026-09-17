@@ -60,7 +60,7 @@ test('GIF real converte e gera mensagem Baileys com legenda e gifPlayback, sem r
     const file = path.join(dir, 'gif com espacos.gif');
     await exec('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
       '-i', 'testsrc=size=101x99:rate=10:duration=1', '-y', file]);
-    const media = await prepareMedia({ file }, { maxVideoSeconds: 12, caption: 'Bom dia 🌹' }, dir);
+    const media = await prepareMedia({ file }, { maxVideoSeconds: 12, caption: 'Bom dia 🌹\nQue seu dia seja lindo!' }, dir);
     assert.ok((await readFile(media.video.url)).length > 0);
     assert.equal(media.jpegThumbnail[0], 0xff);
     let uploads = 0;
@@ -70,7 +70,7 @@ test('GIF real converte e gera mensagem Baileys com legenda e gifPlayback, sem r
     const restored = proto.Message.decode(proto.Message.encode(message).finish());
     assert.equal(uploads, 1);
     assert.equal(restored.videoMessage.gifPlayback, true);
-    assert.equal(restored.videoMessage.caption, 'Bom dia 🌹');
+    assert.equal(restored.videoMessage.caption, 'Bom dia 🌹\nQue seu dia seja lindo!');
     assert.equal(restored.videoMessage.mimetype, 'video/mp4');
     assert.ok(restored.videoMessage.jpegThumbnail.length > 0);
     assert.ok(restored.videoMessage.fileEncSha256.length > 0);

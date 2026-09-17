@@ -46,6 +46,8 @@ export function validateConfig(c) {
     throw Error('catchUpMinutes deve ser inteiro entre 0 e 720.');
   if (typeof c.caption !== 'string' || !c.caption.trim() || c.caption.length > 1000)
     throw Error('caption deve conter de 1 a 1000 caracteres.');
+  if (c.captionMode !== undefined && !['random', 'fixed'].includes(c.captionMode))
+    throw Error('captionMode deve ser random ou fixed.');
   if (!Number.isInteger(c.maxVideoSeconds) || c.maxVideoSeconds < 1 || c.maxVideoSeconds > 30)
     throw Error('maxVideoSeconds deve ser inteiro entre 1 e 30.');
   return c;
@@ -58,6 +60,12 @@ export function validateState(s) {
       !Array.isArray(s.history) || !s.history.every(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.day) &&
         ['attempting', 'submitted', 'uncertain'].includes(x.status) && typeof x.id === 'string'))
     throw Error('Historico invalido. Restaure data/state.json do backup; nao apague para tentar de novo.');
+  if (s.captionRotation !== undefined) {
+    const r = s.captionRotation;
+    if (!r || !Number.isInteger(r.cycle) || r.cycle < 1 || !Array.isArray(r.used) ||
+        !r.used.every(x => typeof x === 'string') || !(r.lastHash === null || typeof r.lastHash === 'string'))
+      throw Error('Historico de frases invalido. Restaure o backup sem apagar o historico de envios.');
+  }
   return s;
 }
 export async function loadState() { return validateState(await readJSON(paths.state, emptyState())); }
@@ -109,7 +117,16 @@ export function reserve(state, selection, day, recipient, id) {
   if (selection.reset) { next.used = []; next.cycle++; }
   next.used.push(selection.gif.hash);
   next.lastHash = selection.gif.hash;
+  const caption = selection.caption;
+  if (caption && !caption.fixed) {
+    next.captionRotation ??= { cycle: 1, used: [], lastHash: null };
+    if (caption.reset) { next.captionRotation.used = []; next.captionRotation.cycle++; }
+    next.captionRotation.used.push(caption.hash);
+    next.captionRotation.lastHash = caption.hash;
+  }
   next.history.push({ day, id, recipient, file: selection.gif.name, hash: selection.gif.hash,
+    ...(caption ? { caption: caption.text, captionHash: caption.hash,
+      captionCycle: caption.fixed ? null : next.captionRotation.cycle } : {}),
     cycle: next.cycle, status: 'attempting', attemptedAt: new Date().toISOString() });
   return next;
 }

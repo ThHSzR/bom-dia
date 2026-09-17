@@ -10,6 +10,7 @@ Bot pessoal para enviar um GIF com legenda, uma vez por dia, para **um contato i
 - Sessão e chaves salvas localmente, com gravação atômica e serializada.
 - Horário diário, fuso IANA, destinatário e legenda configuráveis.
 - Sorteio sem repetição até completar o ciclo, persistente entre reinícios.
+- 40 legendas aleatórias com saudação e quebra de linha, em ciclo independente dos GIFs.
 - Comparação por SHA-256: cópias idênticas ou arquivos renomeados não contam como GIFs novos.
 - Conversão automática de `.gif` para MP4/H.264, enviado com `gifPlayback: true` e miniatura JPEG.
 - Reconexão com espera progressiva; recuperação de horário perdido dentro de uma janela configurável.
@@ -68,6 +69,7 @@ Exemplo (os números abaixo são fictícios):
   "time": "07:15",
   "timeZone": "America/Sao_Paulo",
   "catchUpMinutes": 120,
+  "captionMode": "random",
   "caption": "BOM DIA 🌹☕ Que Deus abençoe seu dia! 🙏✨",
   "maxVideoSeconds": 12
 }
@@ -81,7 +83,8 @@ Exemplo (os números abaixo são fictícios):
 | `time` | Horário local em 24 horas, `HH:MM`. |
 | `timeZone` | Fuso IANA, independente do fuso configurado no Android. |
 | `catchUpMinutes` | Atraso máximo tolerado no mesmo dia, de 0 a 720 minutos. Com 120, tenta até 09:15:59 para uma agenda às 07:15. |
-| `caption` | Legenda fixa, de 1 a 1000 caracteres. |
+| `captionMode` | `random` sorteia frases; é o padrão também quando o campo não existe. `fixed` usa a legenda antiga. |
+| `caption` | Legenda usada no modo `fixed`, de 1 a 1000 caracteres. Mantenha o campo mesmo usando `random`. |
 | `maxVideoSeconds` | Aproveita até os primeiros N segundos do GIF, de 1 a 30; padrão 12. |
 
 Números devem ser strings com **DDI + DDD + número**, sem `+`, espaços, parênteses ou `@`. Para o Brasil, começam com `55`. Informe o número cadastrado no WhatsApp; o bot consulta o serviço para resolver o endereço do destinatário.
@@ -91,6 +94,46 @@ A configuração é lida na inicialização. Após editar, reinicie o processo. 
 No editor `nano`, mantenha as aspas e vírgulas do JSON. Para salvar, toque em **CTRL** na barra do Termux e depois em **O**, confirme com **Enter** e saia com **CTRL + X**. Durante a preparação inicial, deixe `enabled` como `false`.
 
 ## 3. Colocar os GIFs e verificar
+
+### Frases aleatórias e quebras de linha
+
+A coleção `captions.json` já vem com **40 frases**, com saudações como “BOM DIA”, “bodia”, “bomdia”, “bom dia, flor do dia” e um “Buntinha” como easter egg. Todas têm uma saudação na primeira linha e uma mensagem na segunda. Exemplo no WhatsApp:
+
+```text
+BOM DIA 🌹☕
+Que Deus abençoe seu dia e não deixe faltar café! 🙏✨
+```
+
+As frases têm seu próprio ciclo sem repetição, independente dos GIFs. Com 100 GIFs e 40 frases, as frases recomeçam após 40 tentativas reservadas, enquanto os GIFs continuam seu ciclo. Na virada, evita repetir imediatamente a última frase se houver mais de uma disponível. O easter egg aparece uma vez por ciclo completo da coleção padrão, em posição aleatória.
+
+O texto escolhido fica registrado junto ao envio em `data/state.json`. GIF e frase são reservados juntos antes do envio; uma falha ambígua consome ambos. Reinícios preservam os ciclos. A atualização lê o histórico antigo sem apagá-lo e não libera um segundo envio no mesmo dia.
+
+**Para quem já usa o bot:** basta atualizar e reiniciar. A ausência de `captionMode` ativa o sorteio automaticamente. A antiga `caption` continua no arquivo e pode ser usada definindo `"captionMode": "fixed"`.
+
+Para personalizar, crie uma cópia local, que não é enviada ao Git:
+
+```bash
+cd "$HOME/bom-dia"
+cp captions.json captions.local.json
+nano captions.local.json
+```
+
+Faça a cópia apenas ao criar o arquivo pela primeira vez, para não sobrescrever suas edições. Exemplo de conteúdo válido:
+
+```json
+[
+  "BOM DIA 🌹☕\nQue Deus abençoe seu dia! 🙏✨",
+  "Bodia 😴\nA alma só chega depois do café.",
+  "Bom dia, flor do dia 🌻\nQue hoje não falte motivo para sorrir!",
+  "Buntinha 🐣\nBom dia na língua secreta do cafezinho!"
+]
+```
+
+**No JSON, escreva `\n`: o WhatsApp recebe uma quebra de linha real.** Não coloque uma quebra literal dentro das aspas no arquivo JSON. Cada frase deve começar com `Bom dia`, `Bomdia`, `Bodia` ou `Buntinha` (maiúsculas/minúsculas e prolongamentos como `Bomdiaaa` são aceitos), ter mensagem após a quebra e no máximo 1000 caracteres. Frases duplicadas contam uma vez; um arquivo vazio ou inválido gera erro.
+
+`captions.local.json`, quando existe, substitui toda a coleção padrão. Evite editar `captions.json` diretamente para não ter conflitos ao atualizar. Reinicie o serviço após editar frases. Novas frases entram no ciclo, e as removidas deixam de ser sorteadas. `npm run check`, com o serviço parado, mostra uma prévia sem consumir o ciclo. Inclua `captions.local.json` no backup se o tiver criado.
+
+### Importar GIFs
 
 Coloque arquivos `.gif` na pasta `gifs/`. Para importar da pasta Downloads do Android:
 
@@ -299,6 +342,8 @@ Revise atualizações do Baileys antes de trocar a versão. Quando necessário, 
 bom-dia/
 ├── package.json / package-lock.json
 ├── config.example.json
+├── captions.json                # colecao padrao de frases
+├── captions.local.json          # personalizacao opcional, privada
 ├── config.json                  # privado, criado por voce
 ├── .npmrc
 ├── gifs/                        # seus GIFs
@@ -319,7 +364,7 @@ bom-dia/
 
 ## Validação realizada
 
-13 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
+20 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
 
 Os testes automatizados não fazem login nem enviam mensagens reais. Na instalação manual em um Android antigo, o usuário confirmou o funcionamento após a correção do reconhecimento da sessão e confirmou a solução do erro de localização do serviço ao carregar `start-services.sh` no terminal. Isso não substitui a verificação de reinício automático e execução com tela apagada em cada aparelho. Há um workflow de testes Linux no repositório para cada push e pull request.
 

@@ -7,6 +7,7 @@ import { paths, loadConfig, loadState, saveState, readJSON, atomicWrite, dueDay,
 import { localAuth, hasPairedSession } from './auth.js';
 import { prepareMedia } from './media.js';
 import { instanceLock, log } from './runtime.js';
+import { loadCaptions, chooseCaption } from './captions.js';
 
 process.umask(0o077);
 const args = process.argv.slice(2);
@@ -58,6 +59,7 @@ try {
   auth = await localAuth(paths.auth);
   if (!pairing && !hasPairedSession(auth.state.creds)) throw Error('Vincule primeiro com npm run pair ou npm run qr.');
   const state = await loadState();
+  const captions = await loadCaptions(config);
   const messages = await readJSON(messagesFile, {});
   if (!messages || typeof messages !== 'object' || Array.isArray(messages)) throw Error('Cache de mensagens invalido.');
   for (const item of state.history.filter(x => x.status === 'attempting')) item.status = 'uncertain';
@@ -72,7 +74,8 @@ try {
       let selection, content, jid;
       try {
         selection = chooseGif(await listGifs(), state);
-        content = await prepareMedia(selection.gif, config);
+        selection.caption = chooseCaption(captions, state, config);
+        content = await prepareMedia(selection.gif, { ...config, caption: selection.caption.text });
         const found = await current.onWhatsApp(config.recipientNumber);
         const target = found?.find(x => x.exists);
         if (!target?.jid || !target.jid.endsWith('@s.whatsapp.net'))
