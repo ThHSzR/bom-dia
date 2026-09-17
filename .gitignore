@@ -5,3 +5,5 @@ data/
 logs/
 gifs/*
 !gifs/LEIA-ME.txt
+!gifs/*.gif
+!gifs/*.GIF

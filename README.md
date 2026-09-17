@@ -97,7 +97,7 @@ No editor `nano`, mantenha as aspas e vírgulas do JSON. Para salvar, toque em *
 
 ### Frases aleatórias e quebras de linha
 
-A coleção `captions.json` já vem com **40 frases**, com saudações como “BOM DIA”, “bodia”, “bomdia”, “bom dia, flor do dia” e um “Buntinha” como easter egg. Todas têm uma saudação na primeira linha e uma mensagem na segunda. Exemplo no WhatsApp:
+A coleção `captions.json` já vem com **40 frases**, com saudações como “BOM DIA”, “bodia”, “bomdia”, “bom dia, flor do dia” e um “Bundinha” como easter egg. Todas têm uma saudação na primeira linha e uma mensagem na segunda. Exemplo no WhatsApp:
 
 ```text
 BOM DIA 🌹☕
@@ -125,11 +125,11 @@ Faça a cópia apenas ao criar o arquivo pela primeira vez, para não sobrescrev
   "BOM DIA 🌹☕\nQue Deus abençoe seu dia! 🙏✨",
   "Bodia 😴\nA alma só chega depois do café.",
   "Bom dia, flor do dia 🌻\nQue hoje não falte motivo para sorrir!",
-  "Buntinha 🐣\nBom dia na língua secreta do cafezinho!"
+  "Bundinha\nQue seu dia seja leve e a cadeira seja macia."
 ]
 ```
 
-**No JSON, escreva `\n`: o WhatsApp recebe uma quebra de linha real.** Não coloque uma quebra literal dentro das aspas no arquivo JSON. Cada frase deve começar com `Bom dia`, `Bomdia`, `Bodia` ou `Buntinha` (maiúsculas/minúsculas e prolongamentos como `Bomdiaaa` são aceitos), ter mensagem após a quebra e no máximo 1000 caracteres. Frases duplicadas contam uma vez; um arquivo vazio ou inválido gera erro.
+**No JSON, escreva `\n`: o WhatsApp recebe uma quebra de linha real.** Não coloque uma quebra literal dentro das aspas no arquivo JSON. Cada frase deve começar com `Bom dia`, `Bomdia`, `Bodia` ou `Bundinha` (maiúsculas/minúsculas e prolongamentos como `Bomdiaaa` são aceitos), ter mensagem após a quebra e no máximo 1000 caracteres. Frases duplicadas contam uma vez; um arquivo vazio ou inválido gera erro.
 
 `captions.local.json`, quando existe, substitui toda a coleção padrão. Evite editar `captions.json` diretamente para não ter conflitos ao atualizar. Reinicie o serviço após editar frases. Novas frases entram no ciclo, e as removidas deixam de ser sorteadas. `npm run check`, com o serviço parado, mostra uma prévia sem consumir o ciclo. Inclua `captions.local.json` no backup se o tiver criado.
 
@@ -148,7 +148,7 @@ npm run check
 
 `check` valida configuração e histórico, escolhe um arquivo e testa a conversão local. **Não conecta ao WhatsApp, não envia mensagens e não consome o ciclo.** Pare o serviço antes de executá-lo, pois ele usa a mesma área temporária da aplicação.
 
-Use GIFs de até 25 MB. A saída tem largura máxima de 480 pixels, 15 quadros/s, sem áudio e limite local de 15 MB. GIFs longos são truncados conforme `maxVideoSeconds`. Não há arquivos de exemplo incluídos. A pasta é relida a cada preparação, então é possível adicionar ou remover GIFs sem reiniciar.
+Use GIFs de até 25 MB. A saída tem largura máxima de 480 pixels, 15 quadros/s, sem áudio e limite local de 15 MB. GIFs longos são truncados conforme `maxVideoSeconds`. O repositório inclui 179 GIFs fornecidos pelo usuário (aproximadamente 162 MB), com conteúdos distintos por SHA-256. Eles chegam na pasta gifs/ ao clonar ou atualizar o projeto. A pasta é relida a cada preparação, então é possível adicionar ou remover GIFs sem reiniciar.
 
 ### Usar um pack local
 
@@ -320,7 +320,7 @@ tar -czf "$HOME/bom-dia-backup-$(date +%Y%m%d-%H%M%S).tar.gz" config.json data g
 sv up bom-dia
 ```
 
-O backup contém credenciais de acesso ao WhatsApp. Mantenha-o privado. `config.json`, `data/`, `logs/`, GIFs pessoais e `node_modules/` estão excluídos do Git. O histórico contém o número destinatário; a aplicação não arquiva conversas recebidas. `data/messages.json` mantém as últimas mensagens geradas por até 30 dias para recuperação de conteúdo solicitada pelo protocolo.
+O backup contém credenciais de acesso ao WhatsApp. Mantenha-o privado. `config.json`, `captions.local.json`, `data/`, `logs/` e `node_modules/` estão excluídos do Git. Os arquivos .gif diretamente em gifs/ são versionados e ficam públicos quando enviados a este repositório. O histórico contém o número destinatário; a aplicação não arquiva conversas recebidas. `data/messages.json` mantém as últimas mensagens geradas por até 30 dias para recuperação de conteúdo solicitada pelo protocolo.
 
 Para atualizar o código, faça backup e então:
 

@@ -5,14 +5,14 @@ import { parseCaptions, chooseCaption } from '../src/captions.js';
 import { emptyState, validateState, reserve, dispatch, chooseGif } from '../src/core.js';
 
 const gif = { name: 'cafe.gif', hash: 'gif-1' };
-const phrases = parseCaptions(['BOM DIA ☕\nQue seu dia seja lindo!', 'Bodia 🌹\nUm abraço!', 'Buntinha 🐣\nBom dia, surpresa!']);
+const phrases = parseCaptions(['BOM DIA ☕\nQue seu dia seja lindo!', 'Bodia 🌹\nUm abraço!', 'Bundinha\nBom dia, surpresa!']);
 const selection = state => ({ ...chooseGif([gif], state), caption: chooseCaption(phrases, state, {}, () => 0) });
 
 test('colecao tem 40 frases unicas, saudacao, quebra real e um easter egg', async () => {
   const values = JSON.parse(await readFile(new URL('../captions.json', import.meta.url), 'utf8'));
   const parsed = parseCaptions(values);
   assert.equal(parsed.length, 40);
-  assert.equal(parsed.filter(x => x.text.startsWith('Buntinha')).length, 1);
+  assert.equal(parsed.filter(x => x.text.startsWith('Bundinha')).length, 1);
   assert.ok(parsed.every(x => x.text.split('\n').length === 2 && !x.text.includes('\\n')));
 });
 

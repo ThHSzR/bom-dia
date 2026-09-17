@@ -10,8 +10,8 @@ export function parseCaptions(values) {
     const text = value.normalize('NFC').replace(/\r\n?/g, '\n').trim()
       .split('\n').map(line => line.trim()).join('\n');
     const [greeting, ...body] = text.split('\n');
-    if (!/^(?:bom\s*dia+|bodia+|buntinha)\b/iu.test(greeting) || !body.join('\n').trim() || text.length > 1000)
-      throw Error('Cada frase precisa comecar com Bom dia, Bomdia, Bodia ou Buntinha, seguida de quebra de linha e mensagem (ate 1000 caracteres).');
+    if (!/^(?:bom\s*dia+|bodia+|bundinha)\b/iu.test(greeting) || !body.join('\n').trim() || text.length > 1000)
+      throw Error('Cada frase precisa comecar com Bom dia, Bomdia, Bodia ou Bundinha, seguida de quebra de linha e mensagem (ate 1000 caracteres).');
     const hash = createHash('sha256').update(text).digest('hex');
     unique.set(hash, { text, hash });
   }

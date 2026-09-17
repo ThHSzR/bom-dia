@@ -1,4 +1,5 @@
 Coloque seus arquivos .gif aqui. O bot converte automaticamente para MP4/H.264.
 Use GIFs curtos; por padrao sao aproveitados os primeiros 12 segundos.
 Arquivos identicos sao reconhecidos pelo conteudo, mesmo com nomes diferentes.
-Nenhum GIF de exemplo e fornecido. Nao coloque sessoes ou credenciais nesta pasta.
+Esta pasta inclui o pack de GIFs fornecido pelo usuario e versionado no repositorio.
+Arquivos .gif desta pasta podem ser enviados ao Git. Nao coloque sessoes ou credenciais aqui.
