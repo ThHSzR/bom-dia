@@ -248,7 +248,7 @@ cd "$HOME/bom-dia"
 npm run teste
 ```
 
-O comando conecta com a sessão já salva, sorteia o próximo GIF e a próxima frase, exibe a legenda no terminal, tenta enviar uma única mensagem e termina. Respeita `captionMode`: no padrão `random` sorteia; se você tiver escolhido `fixed`, usa `caption`. Ignora o horário, `enabled` e o limite diário somente nesta execução explícita. Não precisa alterar o `config.json` nem apagar o histórico.
+O comando conecta com a sessão já salva, sorteia o próximo GIF e a próxima frase, exibe a legenda no terminal e tenta enviar uma única mensagem. Depois do retorno do Baileys, mantém a conexão aberta por até **90 segundos**, aguardando confirmação. Só anuncia entrega confirmada quando recebe um recibo do destinatário. Uma confirmação apenas do servidor é exibida como tal, sem afirmar que chegou ao contato. Respeita `captionMode`: no padrão `random` sorteia; se você tiver escolhido `fixed`, usa `caption`. Ignora o horário, `enabled` e o limite diário somente nesta execução explícita. Não precisa alterar o `config.json` nem apagar o histórico.
 
 Os testes ficam em `testHistory` no `data/state.json` e aparecem separados em `npm run history`. **Consomem os ciclos de GIFs e frases**, mas não alteram os registros agendados: se o envio diário já ocorreu, continua bloqueado; se ainda não ocorreu, poderá acontecer normalmente no horário. Ao executar o comando novamente, você autoriza outro envio extra. Falhas não disparam outra tentativa automática; confira o histórico e a conversa antes de repetir um teste incerto. Sem conclusão, o teste encerra após aproximadamente cinco minutos, mais até dez segundos para finalizar.
 
@@ -340,6 +340,20 @@ Este projeto prioriza **não enviar duas vezes**: grava uma reserva durável do 
 | `submitted` | `sendMessage` retornou uma mensagem; **não confirma recebimento ou leitura** pelo contato. |
 | `uncertain` | Houve falha após a reserva ou reinício com operação incompleta. Não há reenvio automático nesse dia. |
 
+O campo adicional `confirmation`, visível no histórico e nos logs, descreve o resultado da espera por recibos:
+
+| Confirmação | Significado |
+| --- | --- |
+| `delivered` | Foi recebido um recibo de entrega ou leitura do destinatário. |
+| `server_ack` | O servidor acusou recebimento, mas não houve confirmação do destinatário durante a espera. Pode chegar depois. |
+| `rejected` | O WhatsApp informou um erro e não houve recuperação confirmada durante a espera. O código fica em `confirmationError`. |
+| `unconfirmed` | Não chegou confirmação antes do prazo ou da desconexão. O resultado continua incerto. |
+| `nao monitorada` | Registro antigo, criado antes do acompanhamento de recibos; não permite concluir entrega. |
+
+Esses campos retratam a janela de observação, não um rastreamento permanente. O comando de teste retorna sucesso apenas para `delivered`; nos outros casos encerra com código diferente de zero e explica o resultado. Reative o serviço com `sv up bom-dia` mesmo nesses casos, sem encadear esse comando com `&&` ao teste. O serviço mantém a conexão disponível para solicitações do protocolo relativas a mensagens já armazenadas, sem criar um novo envio manual.
+
+**Se o teste antigo mostrava `submitted`, encerrava imediatamente e a mensagem não aparecia:** atualize o código. A versão anterior encerrava logo após o retorno de `sendMessage`, antes de aguardar recibos. Esse retorno sozinho não comprova entrega. A atualização passa a aguardar os recibos tanto no teste quanto na agenda, sem reenviar automaticamente os registros antigos. Confira a conversa antes de autorizar outro teste.
+
 Uma falha ambígua também consome o GIF no ciclo. Uma falha antes da reserva, como GIF inválido ou número não encontrado, permite nova preparação após 5 minutos, enquanto a janela continuar aberta. **Não apague o histórico para forçar uma tentativa**: você pode duplicar uma mensagem já entregue. Consulte a conversa pelo WhatsApp para esclarecer o resultado.
 
 ## Recuperação e manutenção
@@ -426,7 +440,7 @@ bom-dia/
 
 ## Validação realizada
 
-24 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, envio manual extra sem alterar a agenda, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
+30 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, envio manual extra sem alterar a agenda, espera por recibos e diagnóstico de confirmação, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
 
 Os testes automatizados não fazem login nem enviam mensagens reais. Na instalação manual em um Android antigo, o usuário confirmou o funcionamento após a correção do reconhecimento da sessão e confirmou a solução do erro de localização do serviço ao carregar `start-services.sh` no terminal. Isso não substitui a verificação de reinício automático e execução com tela apagada em cada aparelho. Há um workflow de testes Linux no repositório para cada push e pull request.
 

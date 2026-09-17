@@ -145,6 +145,13 @@ export async function dispatch({ state, selection, day, recipient, id, persist, 
   try {
     const message = await send();
     if (!message?.key?.id) throw Error('Baileys retornou sem identificador de mensagem.');
+    if (message.confirmation) {
+      record.confirmation = message.confirmation;
+      record.confirmationError = message.confirmationError;
+      record.confirmationCheckedAt = message.confirmationCheckedAt;
+    }
+    if (message.confirmation === 'unconfirmed' || message.confirmation === 'rejected')
+      throw Error(message.confirmationError ?? 'Sem confirmacao do WhatsApp dentro da janela de espera.');
     record.status = 'submitted';
     record.messageId = message.key.id;
     record.submittedAt = new Date().toISOString();

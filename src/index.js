@@ -8,6 +8,7 @@ import { localAuth, hasPairedSession } from './auth.js';
 import { prepareMedia } from './media.js';
 import { instanceLock, log } from './runtime.js';
 import { loadCaptions, chooseCaption } from './captions.js';
+import { observeConfirmation, confirmationMessage } from './confirmation.js';
 
 process.umask(0o077);
 const args = process.argv.slice(2);
@@ -98,26 +99,32 @@ try {
       const record = await dispatch({ state, selection, day, recipient: config.recipientNumber, id, manualTest,
         persist: saveState,
         send: async () => {
-          const sent = await current.sendMessage(jid, content, { messageId: id });
-          if (sent?.message) {
-            messages[id] = { at: Date.now(), body: Buffer.from(proto.Message.encode(sent.message).finish()).toString('base64') };
-            for (const [key, value] of Object.entries(messages))
-              if (value.at < Date.now() - 30 * 86400_000) delete messages[key];
-            await atomicWrite(messagesFile, JSON.stringify(messages));
-          }
-          return sent;
+          const observer = observeConfirmation(current, id);
+          try {
+            const sent = await current.sendMessage(jid, content, { messageId: id });
+            if (sent?.message) {
+              messages[id] = { at: Date.now(), body: Buffer.from(proto.Message.encode(sent.message).finish()).toString('base64') };
+              for (const [key, value] of Object.entries(messages))
+                if (value.at < Date.now() - 30 * 86400_000) delete messages[key];
+              await atomicWrite(messagesFile, JSON.stringify(messages));
+            }
+            if (!sent?.key?.id) return sent;
+            if (manualTest) console.log('Mensagem preparada. Aguardando confirmacao do WhatsApp por ate 90 segundos...');
+            const confirmation = await observer.wait();
+            return { ...sent, ...confirmation };
+          } finally { observer.cancel(); }
         }
       });
-      log(record.status, { day, file: record.file, id, mode: manualTest ? 'test' : 'scheduled', error: record.error });
+      log(record.status, { day, file: record.file, id, mode: manualTest ? 'test' : 'scheduled',
+        confirmation: record.confirmation, confirmationError: record.confirmationError, error: record.error });
       return record;
     })();
     let result;
     try { result = await job; } catch (e) { await fatal(e); } finally { job = null; }
     if (manualTest && !stopping) {
-      console.log(result?.status === 'submitted'
-        ? 'Teste enviado ao WhatsApp. A agenda diaria continua preservada.'
-        : 'Teste nao confirmado. Confira os logs e a conversa antes de tentar novamente.');
-      await stop(result?.status === 'submitted' ? 0 : 1);
+      console.log(confirmationMessage(result));
+      console.log('A agenda diaria continua preservada. Reative o servico com sv up bom-dia.');
+      await stop(result?.confirmation === 'delivered' ? 0 : 1);
     }
   }
 
