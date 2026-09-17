@@ -26,6 +26,14 @@ A opção `legacy-peer-deps=true` em `.npmrc` evita instalar o peer nativo `shar
 
 ## 1. Instalar no celular
 
+### Cenário: celular principal e Android antigo
+
+- **Celular principal:** continua com seu WhatsApp e seu número normalmente. É nele que você autoriza a vinculação.
+- **Android antigo:** executa o bot no Termux, com acesso à internet. Não precisa instalar o WhatsApp nele, transferir a conta ou colocar um chip só para o bot; pode usar Wi-Fi.
+- As mensagens saem pela conta vinculada do celular principal, para o contato configurado em `recipientNumber`.
+
+Confira a versão em **Configurações → Sobre o telefone → Versão do Android** antes de começar. Os comandos deste guia são executados no **Termux do aparelho antigo**, salvo indicação em contrário. Cole e execute os blocos em ordem; espere cada instalação terminar.
+
 Instale [Termux](https://f-droid.org/en/packages/com.termux/) e [Termux:Boot](https://f-droid.org/en/packages/com.termux.boot/) pelo **mesmo canal**. Abra ambos uma vez. Não misture APKs do F-Droid com plugins de outra origem.
 
 No Termux:
@@ -80,6 +88,8 @@ Números devem ser strings com **DDI + DDD + número**, sem `+`, espaços, parê
 
 A configuração é lida na inicialização. Após editar, reinicie o processo. Alterar destinatário ou horário não libera um segundo envio no mesmo dia.
 
+No editor `nano`, mantenha as aspas e vírgulas do JSON. Para salvar, toque em **CTRL** na barra do Termux e depois em **O**, confirme com **Enter** e saia com **CTRL + X**. Durante a preparação inicial, deixe `enabled` como `false`.
+
 ## 3. Colocar os GIFs e verificar
 
 Coloque arquivos `.gif` na pasta `gifs/`. Para importar da pasta Downloads do Android:
@@ -96,6 +106,20 @@ npm run check
 `check` valida configuração e histórico, escolhe um arquivo e testa a conversão local. **Não conecta ao WhatsApp, não envia mensagens e não consome o ciclo.** Pare o serviço antes de executá-lo, pois ele usa a mesma área temporária da aplicação.
 
 Use GIFs de até 25 MB. A saída tem largura máxima de 480 pixels, 15 quadros/s, sem áudio e limite local de 15 MB. GIFs longos são truncados conforme `maxVideoSeconds`. Não há arquivos de exemplo incluídos. A pasta é relida a cada preparação, então é possível adicionar ou remover GIFs sem reiniciar.
+
+### Usar um pack local
+
+O bot usa os arquivos locais: **não pesquisa nem baixa GIFs da internet automaticamente e não precisa de chave de API de um catálogo de GIFs**. Ainda precisa de internet para se conectar ao WhatsApp e enviar.
+
+Se seu pack vier em ZIP, extraia-o pelo gerenciador de arquivos do Android e copie os `.gif` extraídos para `gifs/`. O bot lê apenas arquivos diretamente nessa pasta, não subpastas. Renomear uma imagem JPG, WebP ou um vídeo para `.gif` não converte o formato.
+
+O comando de importação acima copia arquivos terminados em `.gif` diretamente de Downloads. Se os seus estiverem numa subpasta ou tiverem extensão `.GIF`, adapte o caminho. Para conferir o conteúdo importado:
+
+```bash
+ls "$HOME/bom-dia/gifs"
+```
+
+Depois da importação, as cópias em Downloads não são necessárias para o bot. Adicionar GIFs não exige novo pareamento nem apagar o histórico. Evite copiar arquivos novos enquanto o bot estiver preparando um envio; se necessário, pare o serviço, copie e inicie novamente.
 
 ## 4. Vincular sua conta
 
@@ -118,6 +142,8 @@ npm run qr
 
 Escaneie o QR pelo menu **Aparelhos conectados** do WhatsApp. É necessário conseguir mostrar o terminal em outra tela para escanear com a câmera; no mesmo aparelho, prefira o código. QR e código são exibidos apenas durante a vinculação; não compartilhe nem publique essa saída.
 
+**Com dois celulares, o QR costuma ser mais prático:** execute `npm run qr` no Android antigo e escaneie essa tela usando o WhatsApp do celular principal. Depois de aparecer a confirmação de sessão salva, use `npm start`; não é necessário executar `pair` ou `qr` toda vez.
+
 O bot mantém a sessão em `data/auth/session.json`. Reinícios normais não exigem vincular novamente. Não execute os comandos de vinculação com o serviço ativo.
 
 ## 5. Ativar e manter rodando
@@ -133,12 +159,32 @@ npm start
 Depois de conferir, encerre com Ctrl+C e instale o serviço:
 
 ```bash
+cd "$HOME/bom-dia"
+# Se usou um horario temporario no teste, ajuste agora para o horario definitivo.
+nano config.json
 bash scripts/install-service.sh
+. "$PREFIX/etc/profile.d/start-services.sh"
 sv-enable bom-dia
 sv status bom-dia
 ```
 
+Execute essas linhas uma por vez. **O ponto e o espaço no início de `. "$PREFIX/etc/profile.d/start-services.sh"` são necessários:** carregam o caminho dos serviços no terminal atual. Executar o instalador com `bash` carrega esse ambiente apenas dentro do instalador, não no terminal que o chamou.
+
+Se o status começar com `run: bom-dia:`, o processo está rodando. Isso confirma o processo ativo, não a entrega de uma mensagem; confira também o histórico e os logs. Não execute `npm start` ao mesmo tempo que o serviço.
+
 O instalador configura o supervisor, logs do serviço e um script em `~/.termux/boot/20-bom-dia-services`. Ele deixa o serviço desativado até `sv-enable`. Não sobrescreve um serviço `bom-dia` já existente.
+
+### Para que serve o Termux:Boot?
+
+| Componente | Papel |
+| --- | --- |
+| Termux | É o ambiente no qual o bot executa. |
+| Serviço runit (`termux-services`) | Mantém o processo supervisionado enquanto o ambiente está ativo e pode reiniciá-lo se cair. |
+| Termux:Boot | Executa o script de inicialização depois que o celular reinicia, iniciando os serviços habilitados. |
+
+Você não precisa digitar comandos nem cadastrar o bot dentro do aplicativo Termux:Boot. **Instale e abra o aplicativo uma vez**; é normal que ele mostre apenas instruções. Nosso instalador já cria o arquivo que ele executará na inicialização.
+
+**Apagar a tela não é reiniciar o celular.** Com o serviço ativo, o bot pode continuar trabalhando com a tela apagada; o Boot é usado quando o aparelho é desligado e ligado novamente. Apenas instalar o Termux:Boot não inicia o bot sem o script e o serviço habilitado.
 
 Na configuração do Android:
 
@@ -148,6 +194,8 @@ Na configuração do Android:
 4. Mantenha rede e alimentação disponíveis; evite usar um aparelho com bateria estufada ou aquecimento anormal.
 
 O wake lock ajuda a manter a CPU ativa; o supervisor reinicia o Node se ele cair. **Nenhum deles garante sobrevivência se o Android matar todo o Termux, se alguém usar “Forçar parada”, ou se faltar rede/energia.** Nesses casos, reabra o Termux; a recuperação depende da janela configurada. Alguns aparelhos só liberam o início após o primeiro desbloqueio do sistema.
+
+Para conferir o início automático, reinicie o aparelho e desbloqueie-o. Aguarde alguns instantes e consulte `sv status bom-dia`. Confira também o horário de início nos logs: abrir o Termux pode iniciar o supervisor, então ver `run:` somente após abri-lo não comprova, por si só, que o Termux:Boot funcionou. Teste também uma execução agendada com a tela apagada no seu aparelho.
 
 ```bash
 sv status bom-dia           # estado do processo
@@ -190,6 +238,27 @@ Este projeto prioriza **não enviar duas vezes**: grava uma reserva durável do 
 Uma falha ambígua também consome o GIF no ciclo. Uma falha antes da reserva, como GIF inválido ou número não encontrado, permite nova preparação após 5 minutos, enquanto a janela continuar aberta. **Não apague o histórico para forçar uma tentativa**: você pode duplicar uma mensagem já entregue. Consulte a conversa pelo WhatsApp para esclarecer o resultado.
 
 ## Recuperação e manutenção
+
+### `unable to change to service directory: file does not exist`
+
+Se o instalador informou que concluiu ou que **o serviço já existe**, mas `sv-enable bom-dia` ou `sv status bom-dia` mostra esse erro, primeiro carregue o ambiente no terminal atual:
+
+```bash
+. "$PREFIX/etc/profile.d/start-services.sh"
+sv-enable bom-dia
+sv status bom-dia
+```
+
+Não reinstale repetidamente. A mensagem `O servico bom-dia ja existe` significa que o instalador preservou a instalação anterior. Se o erro persistir, confira a existência do arquivo e consulte o serviço pelo caminho completo:
+
+```bash
+ls "$PREFIX/var/service/bom-dia/run"
+sv status "$PREFIX/var/service/bom-dia"
+```
+
+Se o arquivo `run` realmente não existir, a instalação não está completa; confira a saída do instalador. Se o erro mencionar `supervise/ok`, o supervisor pode ainda estar iniciando: aguarde alguns segundos após carregar `start-services.sh` e tente novamente.
+
+### Outros casos
 
 - **`npm run pair` conecta, mas `npm start` pede para vincular de novo**: atualize com `git pull --ff-only` e execute `npm start`. A primeira versão verificava apenas `registered`, que pode continuar falso após o pareamento. A correção reconhece a identidade assinada já salva, sem apagar a sessão ou exigir novo QR.
 - **`data/PAUSED`**: pare o serviço e leia o arquivo e os logs. Corrija a causa antes de retomar. Para uma falha de disco ou configuração já corrigida, preserve o histórico, remova apenas `data/PAUSED` e execute `sv-enable bom-dia`.
@@ -252,7 +321,7 @@ bom-dia/
 
 13 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
 
-**Não houve login nem envio real a uma conta.** O pareamento, o envio ao contato, o serviço runit e o comportamento em segundo plano precisam ser confirmados no aparelho Android. Há um workflow de testes Linux no repositório para cada push e pull request.
+Os testes automatizados não fazem login nem enviam mensagens reais. Na instalação manual em um Android antigo, o usuário confirmou o funcionamento após a correção do reconhecimento da sessão e confirmou a solução do erro de localização do serviço ao carregar `start-services.sh` no terminal. Isso não substitui a verificação de reinício automático e execução com tela apagada em cada aparelho. Há um workflow de testes Linux no repositório para cada push e pull request.
 
 ## Fontes consultadas
 
