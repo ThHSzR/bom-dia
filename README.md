@@ -110,6 +110,35 @@ O texto escolhido fica registrado junto ao envio em `data/state.json`. GIF e fra
 
 **Para quem já usa o bot:** basta atualizar e reiniciar. A ausência de `captionMode` ativa o sorteio automaticamente. A antiga `caption` continua no arquivo e pode ser usada definindo `"captionMode": "fixed"`.
 
+### Editar `caption` no `config.json` muda a mensagem?
+
+**Por padrão, não: as legendas são sempre sorteadas.** Tanto `"captionMode": "random"` quanto a ausência desse campo ativam o modo aleatório. Alterar somente `caption` não desativa o sorteio nem adiciona essa frase à coleção.
+
+| O que você quer | Onde editar |
+| --- | --- |
+| Continuar com as 40 frases aleatórias do projeto | Não precisa mudar nada; o padrão é `random`. |
+| Personalizar as frases mantendo o sorteio | Edite `captions.local.json`, conforme as instruções abaixo. |
+| Usar sempre uma frase fixa, por escolha explícita | Defina `captionMode` como `fixed` e edite `caption` no `config.json`. |
+
+Somente se quiser optar pela frase fixa, altere estes campos no seu `config.json`, mantendo os demais:
+
+```json
+"captionMode": "fixed",
+"caption": "BOM DIA 🌹☕\nQue Deus abençoe seu dia!"
+```
+
+Para voltar ao comportamento padrão, troque `fixed` por `random`. O campo `caption` deve continuar preenchido para validar a configuração, mesmo sem ser usado nos envios aleatórios. O modo fixo não consome o ciclo das frases sorteadas.
+
+Depois de editar a configuração ou sua coleção de frases, recarregue o serviço:
+
+```bash
+sv restart bom-dia
+```
+
+Se estiver executando com `npm start`, encerre com Ctrl+C e execute `npm start` novamente. Reiniciar não libera um segundo envio no mesmo dia.
+
+### Personalizar a coleção aleatória
+
 Para personalizar, crie uma cópia local, que não é enviada ao Git:
 
 ```bash
