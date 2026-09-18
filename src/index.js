@@ -173,10 +173,17 @@ try {
         }
         if (update.connection === 'close') {
           online = false;
-          const code = update.lastDisconnect?.error?.output?.statusCode;
-          const terminal = [DisconnectReason.loggedOut, DisconnectReason.badSession,
-            DisconnectReason.connectionReplaced, DisconnectReason.multideviceMismatch, DisconnectReason.forbidden];
-          if (terminal.includes(code)) await fatal(Error('Conexao encerrada com codigo ' + code + '. Confira a sessao; veja README.'));
+          const error = update.lastDisconnect?.error;
+          const code = error?.output?.statusCode;
+          const reason = String(error?.message ?? error ?? 'erro desconhecido');
+          log('desconectado', { code, reason });
+
+          // O proprio Baileys recomenda reconectar em todos os fechamentos,
+          // exceto quando a conta foi efetivamente deslogada (401).
+          // O codigo 500 tambem pode aparecer em erros de stream/failure e
+          // nao prova, sozinho, que a sessao esteja corrompida.
+          if (code === DisconnectReason.loggedOut)
+            await fatal(Error('WhatsApp informou logout da sessao (codigo 401). Vincule novamente; veja README.'));
           else reconnect();
         }
       })().catch(fatal);
