@@ -316,6 +316,44 @@ O supervisor para o serviço após erros de configuração ou erros que exigem i
 
 ## Histórico, repetição e falhas
 
+### Acompanhar tudo em tempo real depois de `sv up`
+
+```bash
+cd "$HOME/bom-dia"
+. "$PREFIX/etc/profile.d/start-services.sh"
+sv up bom-dia
+npm run logs
+```
+
+`npm run logs` mostra as últimas 40 linhas e continua acompanhando novas linhas, inclusive após rotação do arquivo. **Ctrl+C fecha somente a visualização: o bot continua rodando pelo serviço.** Não execute `npm start` junto com `sv up`.
+
+A cada **15 segundos**, o bot registra a verificação do horário, mesmo quando não há envio. A visualização mostra o horário local do fuso configurado e explica se está aguardando o horário, offline, desativado, esperando uma nova tentativa, com envio em andamento, com o dia já reservado ou fora da janela. Exemplo ilustrativo:
+
+```text
+[2026-09-18 06:59:45] HORARIO | programado=07:00 (America/Sao_Paulo) | aguardando horario | conexao=online
+[2026-09-18 07:00:00] HORARIO | programado=07:00 (America/Sao_Paulo) | hora de enviar | conexao=online
+```
+
+Também aparecem: carregamento do histórico, conexão e reconexão, salvamento de sessão, avisos operacionais do Baileys, quantidade de GIFs, arquivo e frase sorteados, conversão, validação do contato, reserva salva, envio, espera por confirmação, recibos e encerramento. Os números de contato aparecem apenas pelos quatro últimos dígitos nesses novos eventos. Não são despejados objetos de credenciais, chaves, códigos de pareamento ou conversas recebidas.
+
+Para ver também a saída do supervisor, incluindo erros que aconteçam antes de o bot carregar a configuração:
+
+```bash
+npm run logs:service
+```
+
+Os dois comandos apenas leem arquivos; não iniciam o bot nem enviam mensagens. Se o arquivo ainda não existir, o acompanhamento aguarda sua criação. Caso prefira o JSON bruto:
+
+```bash
+tail -n 40 -F logs/bot.jsonl
+```
+
+O campo `at` continua em UTC para compatibilidade. `atLocal` e `timeZone` mostram a hora no fuso configurado; por exemplo, `19:30Z` corresponde a `16:30` em São Paulo. Linhas antigas, sem `atLocal`, continuam mostrando seu timestamp original. O log mantém rotação em cerca de 5 MB e até três arquivos anteriores, evitando crescimento ilimitado mesmo com verificações frequentes.
+
+### Alteração de reconexão incorporada
+
+A mudança da [PR #1](https://github.com/ThHSzR/bom-dia/pull/1), incorporada à `main` em `15c70dc`, passou a registrar o código e o motivo de cada desconexão e a tentar reconectar para códigos diferentes de logout (`401`). Antes, `403`, `411`, `440` e `500` também causavam pausa. Um erro `500` de stream não é, por si só, prova de sessão corrompida. A política atual foi preservada: outros erros persistentes podem continuar em reconexão, com espera progressiva; acompanhe `desconectado` e `reconectando` para identificar a causa. Logout continua exigindo nova vinculação. Erros de configuração ou persistência continuam podendo interromper o bot.
+
 ```bash
 cd "$HOME/bom-dia"
 npm run history
@@ -440,7 +478,7 @@ bom-dia/
 
 ## Validação realizada
 
-30 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, envio manual extra sem alterar a agenda, espera por recibos e diagnóstico de confirmação, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
+33 testes offline passaram com Node 24 no Windows: configuração, relógio/fuso/janela, mudança de horário de verão, ciclos, alterações na pasta, duplicatas por conteúdo, falhas de persistência/rede, reinício, sessão/chaves reais do Baileys, coleção de frases, ciclos independentes, compatibilidade com histórico antigo, envio manual extra sem alterar a agenda, espera por recibos e diagnóstico de confirmação, decisões da agenda e formatação dos logs em horário local, quebras de linha e conversão de GIF real com montagem de mensagem Baileys usando upload simulado. Instalação das dependências concluída; a auditoria npm não apontou vulnerabilidades naquele momento. O teste de mídia é marcado como ignorado se não houver FFmpeg; para validação completa ele precisa executar e passar.
 
 Os testes automatizados não fazem login nem enviam mensagens reais. Na instalação manual em um Android antigo, o usuário confirmou o funcionamento após a correção do reconhecimento da sessão e confirmou a solução do erro de localização do serviço ao carregar `start-services.sh` no terminal. Isso não substitui a verificação de reinício automático e execução com tela apagada em cada aparelho. Há um workflow de testes Linux no repositório para cada push e pull request.
 

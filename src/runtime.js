@@ -2,6 +2,10 @@ import net from 'node:net';
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { paths } from './core.js';
+import { localTimestamp } from './observability.js';
+
+let logTimeZone = 'America/Sao_Paulo';
+export function configureLogging(timeZone) { logTimeZone = timeZone; }
 
 export async function instanceLock() {
   // Porta apenas local, sem comandos nem dados: o SO libera a trava ate em SIGKILL.
@@ -21,7 +25,9 @@ export function log(event, fields = {}) {
     for (let n = 2; n >= 1; n--) if (existsSync(file + '.' + n)) renameSync(file + '.' + n, file + '.' + (n + 1));
     renameSync(file, file + '.1');
   }
-  const line = JSON.stringify({ at: new Date().toISOString(), event, ...fields });
+  const now = new Date();
+  const line = JSON.stringify({ at: now.toISOString(), atLocal: localTimestamp(now, logTimeZone),
+    timeZone: logTimeZone, event, ...fields });
   appendFileSync(file, line + '\n', { mode: 0o600 });
   console.log(line);
 }

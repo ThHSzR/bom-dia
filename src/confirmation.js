@@ -2,7 +2,7 @@ import { proto } from '@whiskeysockets/baileys';
 
 // Registrar ANTES de sendMessage para nao perder recibos que chegam antes do retorno.
 // SERVER_ACK confirma o servidor; DELIVERY_ACK/READ confirmam o destinatario.
-export function observeConfirmation(socket, id, timeoutMs = 90_000) {
+export function observeConfirmation(socket, id, timeoutMs = 90_000, onProgress = () => {}) {
   const Status = proto.WebMessageInfo.Status;
   let confirmation = 'unconfirmed', error, timer, resolveWait, settled = false, result;
   function finish() {
@@ -18,6 +18,7 @@ export function observeConfirmation(socket, id, timeoutMs = 90_000) {
   }
   function record(status, code) {
     if (settled) return;
+    onProgress({ status: Status[status] ?? status, ...(code ? { code: String(code) } : {}) });
     if (status === Status.ERROR) {
       confirmation = 'rejected'; error = String(code ?? 'erro sem codigo');
       // O Baileys pode recuperar alguns erros com o mesmo ID. Aguarda a janela.

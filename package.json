@@ -11,6 +11,8 @@
     "qr": "node src/index.js --qr",
     "check": "node src/check.js",
     "history": "node src/history.js",
+    "logs": "node src/logs.js",
+    "logs:service": "node src/logs.js --service",
     "teste": "node src/index.js --send-test",
     "test": "node --test"
   },
