@@ -50,6 +50,16 @@ export function validateConfig(c) {
     throw Error('captionMode deve ser random ou fixed.');
   if (!Number.isInteger(c.maxVideoSeconds) || c.maxVideoSeconds < 1 || c.maxVideoSeconds > 30)
     throw Error('maxVideoSeconds deve ser inteiro entre 1 e 30.');
+  if (c.sundayAudio !== undefined) {
+    if (!c.sundayAudio || typeof c.sundayAudio !== 'object' || Array.isArray(c.sundayAudio))
+      throw Error('sundayAudio deve ser um objeto ou deve ser removido.');
+    if (typeof c.sundayAudio.enabled !== 'boolean') throw Error('sundayAudio.enabled deve ser true ou false.');
+    if (c.sundayAudio.file !== null && c.sundayAudio.file !== undefined &&
+        (typeof c.sundayAudio.file !== 'string' || !c.sundayAudio.file.trim()))
+      throw Error('sundayAudio.file deve ser um caminho local nao vazio, null, ou omitido.');
+    if (c.sundayAudio.enabled && (typeof c.sundayAudio.file !== 'string' || !c.sundayAudio.file.trim()))
+      throw Error('sundayAudio.file deve ser informado quando sundayAudio.enabled for true.');
+  }
   return c;
 }
 export async function loadConfig() { return validateConfig(await readJSON(paths.config)); }
@@ -82,6 +92,12 @@ export function clockParts(date, timeZone) {
   }).formatToParts(date);
   const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
   return { day: `${p.year}-${p.month}-${p.day}`, minute: Number(p.hour) * 60 + Number(p.minute) };
+}
+export function isSunday(date, timeZone) {
+  return new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(date) === 'Sun';
+}
+export function shouldSendSundayAudio(date, config, { manualTest = false } = {}) {
+  return !manualTest && Boolean(config.sundayAudio?.enabled) && isSunday(date, config.timeZone);
 }
 export function dueDay(date, config, state) {
   const { day, minute } = clockParts(date, config.timeZone);
@@ -132,6 +148,7 @@ export function reserve(state, selection, day, recipient, id, manualTest = false
   history.push({ day, id, recipient, mode: manualTest ? 'test' : 'scheduled', file: selection.gif.name, hash: selection.gif.hash,
     ...(caption ? { caption: caption.text, captionHash: caption.hash,
       captionCycle: caption.fixed ? null : next.captionRotation.cycle } : {}),
+    ...(selection.sundayAudio ? { sundayAudio: selection.sundayAudio } : {}),
     cycle: next.cycle, status: 'attempting', attemptedAt: new Date().toISOString() });
   return next;
 }
@@ -150,6 +167,7 @@ export async function dispatch({ state, selection, day, recipient, id, persist, 
       record.confirmationError = message.confirmationError;
       record.confirmationCheckedAt = message.confirmationCheckedAt;
     }
+    if (message.sundayAudio) record.sundayAudio = { ...(record.sundayAudio ?? {}), ...message.sundayAudio };
     if (message.confirmation === 'unconfirmed' || message.confirmation === 'rejected')
       throw Error(message.confirmationError ?? 'Sem confirmacao do WhatsApp dentro da janela de espera.');
     record.status = 'submitted';

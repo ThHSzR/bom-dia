@@ -3,9 +3,10 @@ import pino from 'pino';
 import qr from 'qrcode-terminal';
 import { mkdir, readFile, unlink, access } from 'node:fs/promises';
 import path from 'node:path';
-import { paths, loadConfig, loadState, saveState, readJSON, atomicWrite, dueDay, listGifs, chooseGif, dispatch } from './core.js';
+import { paths, loadConfig, loadState, saveState, readJSON, atomicWrite, dueDay, listGifs, chooseGif, dispatch,
+  isSunday, shouldSendSundayAudio } from './core.js';
 import { localAuth, hasPairedSession } from './auth.js';
-import { prepareMedia } from './media.js';
+import { prepareAudio, prepareMedia } from './media.js';
 import { instanceLock, log, configureLogging } from './runtime.js';
 import { inspectSchedule } from './observability.js';
 import { loadCaptions, chooseCaption } from './captions.js';
@@ -26,6 +27,15 @@ let socket, reconnectTimer, timer, stopping = false, online = false, backoff = 0
 let job = null, nextTry = 0;
 let testStarted = false, testTimeout;
 let auth;
+
+function aggregateConfirmations(results) {
+  const priority = { rejected: 4, unconfirmed: 3, server_ack: 2, delivered: 1 };
+  const worst = results.toSorted((a, b) => (priority[b.confirmation] ?? 99) - (priority[a.confirmation] ?? 99))[0];
+  const confirmationError = worst.confirmation === 'delivered' ? undefined
+    : results.map(x => `${x.kind}: ${x.confirmation}${x.confirmationError ? ' (' + x.confirmationError + ')' : ''}`).join('; ');
+  return { confirmation: worst.confirmation, ...(confirmationError ? { confirmationError } : {}),
+    confirmationCheckedAt: worst.confirmationCheckedAt };
+}
 
 async function stop(code = 0) {
   if (stopping) return;
@@ -75,7 +85,8 @@ try {
     gifCycle: state.cycle, captionMode: config.captionMode ?? 'random', availableCaptions: captions.length });
 
   async function tick() {
-    const decision = inspectSchedule(new Date(), config, state, { pairing, online, stopping,
+    const now = new Date();
+    const decision = inspectSchedule(now, config, state, { pairing, online, stopping,
       busy: Boolean(job), retryAt: nextTry, manualTest, testStarted });
     log('verificacao_horario', decision);
     if (!decision.ready) return;
@@ -83,7 +94,8 @@ try {
     if (manualTest) testStarted = true;
     job = (async () => {
       const current = socket;
-      let selection, content, jid;
+      const includeSundayAudio = shouldSendSundayAudio(now, config, { manualTest });
+      let selection, content, sundayAudio, jid;
       try {
         log('buscando_gifs');
         const files = await listGifs();
@@ -95,6 +107,14 @@ try {
         log('conversao_iniciada', { file: selection.gif.name });
         content = await prepareMedia(selection.gif, { ...config, caption: selection.caption.text });
         log('conversao_concluida', { file: selection.gif.name });
+        if (includeSundayAudio) {
+          log('audio_domingo_preparacao_iniciada', { file: path.basename(config.sundayAudio.file) });
+          sundayAudio = await prepareAudio(config.sundayAudio.file);
+          selection.sundayAudio = { file: sundayAudio.name, mimetype: sundayAudio.mimetype, size: sundayAudio.size };
+          log('audio_domingo_preparacao_concluida', selection.sundayAudio);
+        } else if (!manualTest && isSunday(now, config.timeZone)) {
+          log('audio_domingo_inativo', { enabled: Boolean(config.sundayAudio?.enabled) });
+        }
         log('consultando_destinatario', { numberEnding: config.recipientNumber.slice(-4) });
         const found = await current.onWhatsApp(config.recipientNumber);
         const target = found?.find(x => x.exists);
@@ -114,28 +134,51 @@ try {
       }
       if (manualTest) console.log('Enviando teste real: ' + selection.gif.name + '\n' + selection.caption.text);
       const id = generateMessageIDV2(current.user?.id);
+      const audioId = sundayAudio ? generateMessageIDV2(current.user?.id) : null;
       const record = await dispatch({ state, selection, day, recipient: config.recipientNumber, id, manualTest,
         persist: saveState,
         send: async () => {
-          log('reserva_salva', { id, day, mode: manualTest ? 'test' : 'scheduled' });
-          const observer = observeConfirmation(current, id, 90_000,
-            receipt => log('recibo_whatsapp', { id, ...receipt }));
+          log('reserva_salva', { id, day, mode: manualTest ? 'test' : 'scheduled',
+            ...(audioId ? { sundayAudioId: audioId } : {}) });
+          const observers = [{ kind: 'bom_dia', id, observer: observeConfirmation(current, id, 90_000,
+            receipt => log('recibo_whatsapp', { id, kind: 'bom_dia', ...receipt })) }];
+          if (audioId) observers.push({ kind: 'audio_domingo', id: audioId,
+            observer: observeConfirmation(current, audioId, 90_000,
+              receipt => log('recibo_whatsapp', { id: audioId, kind: 'audio_domingo', ...receipt })) });
+          async function cacheMessage(messageId, sent) {
+            if (!sent?.message) return;
+            messages[messageId] = { at: Date.now(), body: Buffer.from(proto.Message.encode(sent.message).finish()).toString('base64') };
+            for (const [key, value] of Object.entries(messages))
+              if (value.at < Date.now() - 30 * 86400_000) delete messages[key];
+            await atomicWrite(messagesFile, JSON.stringify(messages));
+          }
           try {
-            log('envio_iniciado', { id, file: selection.gif.name });
+            log('envio_iniciado', { id, kind: 'bom_dia', file: selection.gif.name });
             const sent = await current.sendMessage(jid, content, { messageId: id });
-            log('baileys_retornou', { id, hasMessageId: Boolean(sent?.key?.id) });
-            if (sent?.message) {
-              messages[id] = { at: Date.now(), body: Buffer.from(proto.Message.encode(sent.message).finish()).toString('base64') };
-              for (const [key, value] of Object.entries(messages))
-                if (value.at < Date.now() - 30 * 86400_000) delete messages[key];
-              await atomicWrite(messagesFile, JSON.stringify(messages));
-            }
+            log('baileys_retornou', { id, kind: 'bom_dia', hasMessageId: Boolean(sent?.key?.id) });
+            await cacheMessage(id, sent);
             if (!sent?.key?.id) return sent;
-            log('aguardando_confirmacao', { id, timeoutSeconds: 90 });
+            let audioSent;
+            if (sundayAudio) {
+              log('envio_iniciado', { id: audioId, kind: 'audio_domingo', file: sundayAudio.name });
+              audioSent = await current.sendMessage(jid, sundayAudio.content, { messageId: audioId });
+              log('baileys_retornou', { id: audioId, kind: 'audio_domingo', hasMessageId: Boolean(audioSent?.key?.id) });
+              await cacheMessage(audioId, audioSent);
+              if (!audioSent?.key?.id) throw Error('Baileys retornou audio de domingo sem identificador de mensagem.');
+            }
+            log('aguardando_confirmacao', { id, ...(audioId ? { sundayAudioId: audioId } : {}), timeoutSeconds: 90 });
             if (manualTest) console.log('Mensagem preparada. Aguardando confirmacao do WhatsApp por ate 90 segundos...');
-            const confirmation = await observer.wait();
-            return { ...sent, ...confirmation };
-          } finally { observer.cancel(); }
+            const confirmations = await Promise.all(observers.map(async item => ({ kind: item.kind, id: item.id,
+              ...await item.observer.wait() })));
+            const sundayAudioResult = sundayAudio ? {
+              ...selection.sundayAudio, id: audioId, messageId: audioSent.key.id,
+              confirmation: confirmations.find(x => x.kind === 'audio_domingo')?.confirmation,
+              confirmationError: confirmations.find(x => x.kind === 'audio_domingo')?.confirmationError,
+              confirmationCheckedAt: confirmations.find(x => x.kind === 'audio_domingo')?.confirmationCheckedAt
+            } : undefined;
+            return { ...sent, ...aggregateConfirmations(confirmations),
+              ...(sundayAudioResult ? { sundayAudio: sundayAudioResult } : {}) };
+          } finally { for (const item of observers) item.observer.cancel(); }
         }
       });
       log(record.status, { day, file: record.file, id, mode: manualTest ? 'test' : 'scheduled',

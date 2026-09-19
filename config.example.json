@@ -7,5 +7,9 @@
   "catchUpMinutes": 120,
   "captionMode": "random",
   "caption": "BOM DIA 🌹☕ Que Deus abençoe seu dia! 🙏✨",
-  "maxVideoSeconds": 12
+  "maxVideoSeconds": 12,
+  "sundayAudio": {
+    "enabled": true,
+    "file": "audio/abencoa-senhor.mp3"
+  }
 }

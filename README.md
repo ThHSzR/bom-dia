@@ -13,6 +13,7 @@ Bot pessoal para enviar um GIF com legenda, uma vez por dia, para **um contato i
 - 40 legendas aleatórias com saudação e quebra de linha, em ciclo independente dos GIFs.
 - Comparação por SHA-256: cópias idênticas ou arquivos renomeados não contam como GIFs novos.
 - Conversão automática de `.gif` para MP4/H.264, enviado com `gifPlayback: true` e miniatura JPEG.
+- Áudio especial de domingo, enviado junto com o Bom Dia agendado; o arquivo padrão está incluído e pode ser trocado por outro caminho local.
 - Reconexão com espera progressiva; recuperação de horário perdido dentro de uma janela configurável.
 - Histórico persistente, logs com rotação e trava para impedir duas instâncias no mesmo aparelho.
 - Serviço runit com Termux:Boot e wake lock.
@@ -71,7 +72,11 @@ Exemplo (os números abaixo são fictícios):
   "catchUpMinutes": 120,
   "captionMode": "random",
   "caption": "BOM DIA 🌹☕ Que Deus abençoe seu dia! 🙏✨",
-  "maxVideoSeconds": 12
+  "maxVideoSeconds": 12,
+  "sundayAudio": {
+    "enabled": true,
+    "file": "audio/abencoa-senhor.mp3"
+  }
 }
 ```
 
@@ -86,12 +91,31 @@ Exemplo (os números abaixo são fictícios):
 | `captionMode` | `random` sorteia frases; é o padrão também quando o campo não existe. `fixed` usa a legenda antiga. |
 | `caption` | Legenda usada no modo `fixed`, de 1 a 1000 caracteres. Mantenha o campo mesmo usando `random`. |
 | `maxVideoSeconds` | Aproveita até os primeiros N segundos do GIF, de 1 a 30; padrão 12. |
+| `sundayAudio.enabled` | `true` ativa um áudio extra somente aos domingos, junto com o envio agendado. |
+| `sundayAudio.file` | Caminho do áudio. O padrão versionado é `audio/abencoa-senhor.mp3`; também pode ser um caminho local privado, absoluto ou relativo ao projeto. |
 
 Números devem ser strings com **DDI + DDD + número**, sem `+`, espaços, parênteses ou `@`. Para o Brasil, começam com `55`. Informe o número cadastrado no WhatsApp; o bot consulta o serviço para resolver o endereço do destinatário.
 
 A configuração é lida na inicialização. Após editar, reinicie o processo. Alterar destinatário ou horário não libera um segundo envio no mesmo dia.
 
 No editor `nano`, mantenha as aspas e vírgulas do JSON. Para salvar, toque em **CTRL** na barra do Termux e depois em **O**, confirme com **Enter** e saia com **CTRL + X**. Durante a preparação inicial, deixe `enabled` como `false`.
+
+### Áudio especial de domingo
+
+O repositório já inclui `audio/abencoa-senhor.mp3`, configurado para tocar somente no envio agendado de domingo:
+
+```json
+"sundayAudio": {
+  "enabled": true,
+  "file": "audio/abencoa-senhor.mp3"
+}
+```
+
+Esse áudio foi incluído no Git por escolha explícita do proprietário do repositório. Para substituí-lo sem publicar o novo arquivo, coloque o áudio em `data/private/` e altere apenas o `config.json`, que já é privado pelo `.gitignore`. Caminhos absolutos também funcionam. Os logs e o histórico registram apenas nome, tipo e tamanho do arquivo.
+
+Formatos aceitos: `.mp3`, `.m4a`, `.aac`, `.ogg`, `.opus` e `.wav`, até 16 MB. Se `sundayAudio.enabled` estiver `false` ou o bloco não existir, domingos continuam enviando apenas o Bom Dia normal. Se estiver `true` e o arquivo estiver ausente, vazio, grande demais ou com extensão não aceita, o bot registra `falha_preparacao`, não envia nada naquela tentativa e tenta novamente depois de 5 minutos enquanto a janela do dia estiver aberta. Se o GIF já tiver sido enviado e o áudio falhar depois disso, o dia fica reservado como `uncertain`, sem reenvio automático, para evitar duplicidade.
+
+`npm run check` valida o caminho e o formato do áudio quando `sundayAudio.enabled` está ativo, sem conectar ao WhatsApp e sem enviar mensagens. `npm run test:sunday` executa o cenário automatizado do domingo com o arquivo padrão, também sem conexão ou envio real.
 
 ## 3. Colocar os GIFs e verificar
 
@@ -235,7 +259,7 @@ npm start
 | Comando | Comportamento |
 | --- | --- |
 | `npm test` | Testes de código offline, sem envio. |
-| `npm run check` | Prévia e conversão local, sem envio. |
+| `npm run check` | Prévia, conversão local e validação do áudio configurado, sem envio. |
 | `npm run teste` | Um envio real imediato, mesmo que já tenha enviado hoje. |
 | `npm start` | Agenda normal, no máximo uma tentativa diária. |
 
@@ -334,7 +358,7 @@ A cada **15 segundos**, o bot registra a verificação do horário, mesmo quando
 [2026-09-18 07:00:00] HORARIO | programado=07:00 (America/Sao_Paulo) | hora de enviar | conexao=online
 ```
 
-Também aparecem: carregamento do histórico, conexão e reconexão, salvamento de sessão, avisos operacionais do Baileys, quantidade de GIFs, arquivo e frase sorteados, conversão, validação do contato, reserva salva, envio, espera por confirmação, recibos e encerramento. Os números de contato aparecem apenas pelos quatro últimos dígitos nesses novos eventos. Não são despejados objetos de credenciais, chaves, códigos de pareamento ou conversas recebidas.
+Também aparecem: carregamento do histórico, conexão e reconexão, salvamento de sessão, avisos operacionais do Baileys, quantidade de GIFs, arquivo e frase sorteados, conversão, validação do contato, reserva salva, envio, espera por confirmação, recibos e encerramento. Em domingos com áudio ativo, também aparecem a preparação do áudio, o envio com `kind="audio_domingo"` e a confirmação separada desse segundo item. Os números de contato aparecem apenas pelos quatro últimos dígitos nesses novos eventos. Não são despejados objetos de credenciais, chaves, códigos de pareamento ou conversas recebidas.
 
 Para ver também a saída do supervisor, incluindo erros que aconteçam antes de o bot carregar a configuração:
 
@@ -394,6 +418,8 @@ Esses campos retratam a janela de observação, não um rastreamento permanente.
 
 Uma falha ambígua também consome o GIF no ciclo. Uma falha antes da reserva, como GIF inválido ou número não encontrado, permite nova preparação após 5 minutos, enquanto a janela continuar aberta. **Não apague o histórico para forçar uma tentativa**: você pode duplicar uma mensagem já entregue. Consulte a conversa pelo WhatsApp para esclarecer o resultado.
 
+O áudio de domingo segue a mesma regra: erro antes da reserva não envia o GIF nem consome o dia; erro depois do início do envio deixa o registro incerto e bloqueia nova tentativa automática naquele domingo.
+
 ## Recuperação e manutenção
 
 ### `unable to change to service directory: file does not exist`
@@ -434,7 +460,7 @@ tar -czf "$HOME/bom-dia-backup-$(date +%Y%m%d-%H%M%S).tar.gz" config.json data g
 sv up bom-dia
 ```
 
-O backup contém credenciais de acesso ao WhatsApp. Mantenha-o privado. `config.json`, `captions.local.json`, `data/`, `logs/` e `node_modules/` estão excluídos do Git. Os arquivos .gif diretamente em gifs/ são versionados e ficam públicos quando enviados a este repositório. O histórico contém o número destinatário; a aplicação não arquiva conversas recebidas. `data/messages.json` mantém as últimas mensagens geradas por até 30 dias para recuperação de conteúdo solicitada pelo protocolo.
+O backup contém credenciais de acesso ao WhatsApp. Mantenha-o privado. `config.json`, `captions.local.json`, `data/`, `logs/` e `node_modules/` estão excluídos do Git. Os arquivos em `gifs/` e o áudio padrão em `audio/` são versionados e públicos neste repositório. O histórico contém o número destinatário; a aplicação não arquiva conversas recebidas. `data/messages.json` mantém as últimas mensagens geradas por até 30 dias para recuperação de conteúdo solicitada pelo protocolo.
 
 Para atualizar o código, faça backup e então:
 
@@ -460,6 +486,8 @@ bom-dia/
 ├── captions.local.json          # personalizacao opcional, privada
 ├── config.json                  # privado, criado por voce
 ├── .npmrc
+├── audio/
+│   └── abencoa-senhor.mp3       # audio extra enviado aos domingos
 ├── gifs/                        # seus GIFs
 ├── src/
 │   ├── index.js                 # conexao, pareamento e agenda
@@ -472,7 +500,7 @@ bom-dia/
 ├── scripts/install-service.sh
 ├── test/                        # testes offline
 ├── .github/workflows/test.yml
-├── data/                        # criado durante uso, privado
+├── data/                        # criado durante uso, privado; pode guardar um audio alternativo
 └── logs/                        # criado durante uso, privado
 ```
 

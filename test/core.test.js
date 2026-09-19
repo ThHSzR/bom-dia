@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { validateConfig, emptyState, clockParts, dueDay, chooseGif, reserve, dispatch,
-  atomicWrite, readJSON, listGifs, validateState } from '../src/core.js';
+  atomicWrite, readJSON, listGifs, validateState, isSunday, shouldSendSundayAudio } from '../src/core.js';
 
 const c = { enabled: true, ownerNumber: '5511999999999', recipientNumber: '5511988888888',
   time: '07:15', timeZone: 'America/Sao_Paulo', catchUpMinutes: 120, caption: 'Bom dia!', maxVideoSeconds: 12 };
@@ -15,6 +15,11 @@ test('configuracao rejeita horario, fuso, grupo, numero e limites invalidos', ()
     { recipientNumber: '123@g.us' }, { ownerNumber: '+5511999999999' },
     { catchUpMinutes: -1 }, { maxVideoSeconds: 0 }, { caption: '' }, { enabled: 'true' }])
     assert.throws(() => validateConfig({ ...c, ...change }));
+  assert.equal(validateConfig({ ...c, sundayAudio: { enabled: false, file: null } }).sundayAudio.enabled, false);
+  assert.equal(validateConfig({ ...c, sundayAudio: { enabled: true, file: 'data/private/domingo.mp3' } }).sundayAudio.enabled, true);
+  for (const sundayAudio of [{}, null, { enabled: 'true', file: 'a.mp3' }, { enabled: true },
+    { enabled: true, file: '' }, { enabled: false, file: '' }])
+    assert.throws(() => validateConfig({ ...c, sundayAudio }));
 });
 test('agenda respeita fuso, horario, janela, desativacao e dia civil', () => {
   const s = emptyState();
@@ -24,6 +29,14 @@ test('agenda respeita fuso, horario, janela, desativacao e dia civil', () => {
   assert.equal(dueDay(new Date('2026-09-17T12:16:00Z'), c, s), null);
   assert.equal(dueDay(new Date('2026-09-17T10:15:00Z'), { ...c, enabled: false }, s), null);
   assert.deepEqual(clockParts(new Date('2026-09-18T01:00:00Z'), c.timeZone), { day: '2026-09-17', minute: 1320 });
+});
+test('audio de domingo respeita fuso e nao entra no teste manual', () => {
+  const config = { ...c, sundayAudio: { enabled: true, file: 'data/private/domingo.mp3' } };
+  assert.equal(isSunday(new Date('2026-09-20T03:00:00Z'), 'America/Sao_Paulo'), true);
+  assert.equal(shouldSendSundayAudio(new Date('2026-09-20T10:15:00Z'), config), true);
+  assert.equal(shouldSendSundayAudio(new Date('2026-09-20T10:15:00Z'), config, { manualTest: true }), false);
+  assert.equal(shouldSendSundayAudio(new Date('2026-09-21T10:15:00Z'), config), false);
+  assert.equal(shouldSendSundayAudio(new Date('2026-09-20T10:15:00Z'), { ...c, sundayAudio: { enabled: false, file: null } }), false);
 });
 test('horario repetido no fim do horario de verao nao reenvia', () => {
   const config = { ...c, time: '01:30', timeZone: 'America/New_York' };
@@ -68,6 +81,19 @@ test('falha de rede ambigua nao libera o dia para segundo envio', async () => {
   assert.equal(state.history[0].status, 'uncertain');
   assert.equal(dueDay(new Date('2026-09-17T10:16:00Z'), c, state), null);
   assert.equal(attempts, 1);
+});
+test('metadados do audio de domingo ficam na mesma reserva diaria', async () => {
+  const state = emptyState();
+  const selection = { ...chooseGif(files, state), sundayAudio: { file: 'domingo.mp3', mimetype: 'audio/mpeg', size: 1234 } };
+  const result = await dispatch({ state, selection, day: '2026-09-20',
+    recipient: c.recipientNumber, id: 'ID', persist: async () => {},
+    send: async () => ({ key: { id: 'ID' }, confirmation: 'delivered',
+      sundayAudio: { ...selection.sundayAudio, id: 'AUDIO', messageId: 'AUDIO', confirmation: 'delivered' } }) });
+  assert.equal(result.status, 'submitted');
+  assert.deepEqual(state.history[0].sundayAudio, {
+    file: 'domingo.mp3', mimetype: 'audio/mpeg', size: 1234, id: 'AUDIO', messageId: 'AUDIO', confirmation: 'delivered'
+  });
+  assert.equal(dueDay(new Date('2026-09-20T10:16:00Z'), c, state), null);
 });
 test('falha ao persistir reserva impede envio', async () => {
   const state = emptyState(); let attempts = 0;

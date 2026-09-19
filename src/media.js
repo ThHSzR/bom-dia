@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { paths } from './core.js';
+import { ROOT, paths } from './core.js';
 
 const exec = promisify(execFile);
 export async function prepareMedia(gif, config, directory = paths.cache) {
@@ -20,4 +20,31 @@ export async function prepareMedia(gif, config, directory = paths.cache) {
     '-i', video, '-frames:v', '1', '-vf', 'scale=160:-2', thumb], { timeout: 30_000 });
   return { video: { url: video }, mimetype: 'video/mp4', gifPlayback: true,
     caption: config.caption, jpegThumbnail: await readFile(thumb) };
+}
+
+const AUDIO_MIMETYPES = new Map([
+  ['.aac', 'audio/aac'],
+  ['.m4a', 'audio/mp4'],
+  ['.mp3', 'audio/mpeg'],
+  ['.ogg', 'audio/ogg; codecs=opus'],
+  ['.opus', 'audio/ogg; codecs=opus'],
+  ['.wav', 'audio/wav']
+]);
+
+export async function prepareAudio(file) {
+  const resolved = path.resolve(ROOT, file);
+  const name = path.basename(resolved);
+  const ext = path.extname(name).toLowerCase();
+  const mimetype = AUDIO_MIMETYPES.get(ext);
+  if (!mimetype) throw Error('Audio de domingo deve ser .mp3, .m4a, .aac, .ogg, .opus ou .wav.');
+  let info;
+  try { info = await stat(resolved); }
+  catch (e) {
+    if (e.code === 'ENOENT') throw Error('Audio de domingo nao encontrado: ' + name);
+    throw e;
+  }
+  if (!info.isFile()) throw Error('Audio de domingo nao e um arquivo: ' + name);
+  if (info.size <= 0) throw Error('Audio de domingo esta vazio: ' + name);
+  if (info.size > 16 * 1024 * 1024) throw Error('Audio de domingo excede 16 MB: ' + name);
+  return { content: { audio: { url: resolved }, mimetype }, name, size: info.size, mimetype };
 }
