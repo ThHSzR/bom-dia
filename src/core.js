@@ -96,8 +96,8 @@ export function clockParts(date, timeZone) {
 export function isSunday(date, timeZone) {
   return new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(date) === 'Sun';
 }
-export function shouldSendSundayAudio(date, config, { manualTest = false } = {}) {
-  return !manualTest && Boolean(config.sundayAudio?.enabled) && isSunday(date, config.timeZone);
+export function shouldSendSundayAudio(date, config, { manualTest = false, force = false } = {}) {
+  return Boolean(config.sundayAudio?.enabled) && (force || (!manualTest && isSunday(date, config.timeZone)));
 }
 export function dueDay(date, config, state) {
   const { day, minute } = clockParts(date, config.timeZone);

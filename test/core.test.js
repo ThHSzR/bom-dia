@@ -30,11 +30,13 @@ test('agenda respeita fuso, horario, janela, desativacao e dia civil', () => {
   assert.equal(dueDay(new Date('2026-09-17T10:15:00Z'), { ...c, enabled: false }, s), null);
   assert.deepEqual(clockParts(new Date('2026-09-18T01:00:00Z'), c.timeZone), { day: '2026-09-17', minute: 1320 });
 });
-test('audio de domingo respeita fuso e nao entra no teste manual', () => {
+test('audio de domingo respeita fuso e so entra no teste manual quando forcado', () => {
   const config = { ...c, sundayAudio: { enabled: true, file: 'data/private/domingo.mp3' } };
   assert.equal(isSunday(new Date('2026-09-20T03:00:00Z'), 'America/Sao_Paulo'), true);
   assert.equal(shouldSendSundayAudio(new Date('2026-09-20T10:15:00Z'), config), true);
   assert.equal(shouldSendSundayAudio(new Date('2026-09-20T10:15:00Z'), config, { manualTest: true }), false);
+  assert.equal(shouldSendSundayAudio(new Date('2026-09-21T10:15:00Z'), config,
+    { manualTest: true, force: true }), true);
   assert.equal(shouldSendSundayAudio(new Date('2026-09-21T10:15:00Z'), config), false);
   assert.equal(shouldSendSundayAudio(new Date('2026-09-20T10:15:00Z'), { ...c, sundayAudio: { enabled: false, file: null } }), false);
 });

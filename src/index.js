@@ -14,10 +14,14 @@ import { observeConfirmation, confirmationMessage } from './confirmation.js';
 
 process.umask(0o077);
 const args = process.argv.slice(2);
-if (args.some(x => !['--pair', '--qr', '--send-test'].includes(x)) || args.length > 1) throw Error('Use npm start, npm run pair, npm run qr ou npm run teste.');
+if (args.some(x => !['--pair', '--qr', '--send-test', '--send-sunday-test'].includes(x)) || args.length > 1)
+  throw Error('Use npm start, npm run pair, npm run qr, npm run teste ou npm run teste-domingo.');
 const pairing = args.includes('--pair') || args.includes('--qr');
-const manualTest = args.includes('--send-test');
+const sundayTest = args.includes('--send-sunday-test');
+const manualTest = args.includes('--send-test') || sundayTest;
 const config = await loadConfig();
+if (sundayTest && !config.sundayAudio?.enabled)
+  throw Error('npm run teste-domingo exige sundayAudio.enabled=true e um arquivo configurado.');
 configureLogging(config.timeZone);
 const lock = await instanceLock();
 await mkdir(paths.data, { recursive: true, mode: 0o700 });
@@ -94,7 +98,7 @@ try {
     if (manualTest) testStarted = true;
     job = (async () => {
       const current = socket;
-      const includeSundayAudio = shouldSendSundayAudio(now, config, { manualTest });
+      const includeSundayAudio = shouldSendSundayAudio(now, config, { manualTest, force: sundayTest });
       let selection, content, sundayAudio, jid;
       try {
         log('buscando_gifs');
@@ -132,7 +136,8 @@ try {
         log('envio_adiado', { reason: 'conexao_ou_janela_alterada_durante_preparacao', online });
         return;
       }
-      if (manualTest) console.log('Enviando teste real: ' + selection.gif.name + '\n' + selection.caption.text);
+      if (manualTest) console.log(`Enviando teste real${sundayTest ? ' de domingo com audio' : ''}: ` +
+        selection.gif.name + '\n' + selection.caption.text);
       const id = generateMessageIDV2(current.user?.id);
       const audioId = sundayAudio ? generateMessageIDV2(current.user?.id) : null;
       const record = await dispatch({ state, selection, day, recipient: config.recipientNumber, id, manualTest,
@@ -266,9 +271,10 @@ try {
     });
   }
   timer = setInterval(() => { void tick().catch(fatal); }, 15_000);
-  log('iniciado', { mode: pairing ? args[0] : manualTest ? 'test' : 'agendado' });
+  log('iniciado', { mode: pairing ? args[0] : sundayTest ? 'test-sunday' : manualTest ? 'test' : 'agendado' });
   if (manualTest) {
-    console.log('TESTE REAL: envia uma mensagem ao contato configurado, mesmo fora do horario, com enabled=false ou apos o envio diario.');
+    console.log(`TESTE REAL: envia ${sundayTest ? 'o Bom Dia e o audio de domingo' : 'uma mensagem'} ao contato configurado, ` +
+      'mesmo fora do horario, com enabled=false ou apos o envio diario.');
     testTimeout = setTimeout(() => {
       log('tempo_teste_esgotado');
       console.error('Tempo de teste esgotado. Confira o historico e a conversa antes de repetir.');

@@ -14,7 +14,7 @@
     "logs": "node src/logs.js",
     "logs:service": "node src/logs.js --service",
     "teste": "node src/index.js --send-test",
-    "test:sunday": "node --test --test-name-pattern=\"domingo versionado\"",
+    "teste-domingo": "node src/index.js --send-sunday-test",
     "test": "node --test"
   },
   "dependencies": {

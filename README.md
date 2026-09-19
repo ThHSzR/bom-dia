@@ -115,7 +115,7 @@ Esse áudio foi incluído no Git por escolha explícita do proprietário do repo
 
 Formatos aceitos: `.mp3`, `.m4a`, `.aac`, `.ogg`, `.opus` e `.wav`, até 16 MB. Se `sundayAudio.enabled` estiver `false` ou o bloco não existir, domingos continuam enviando apenas o Bom Dia normal. Se estiver `true` e o arquivo estiver ausente, vazio, grande demais ou com extensão não aceita, o bot registra `falha_preparacao`, não envia nada naquela tentativa e tenta novamente depois de 5 minutos enquanto a janela do dia estiver aberta. Se o GIF já tiver sido enviado e o áudio falhar depois disso, o dia fica reservado como `uncertain`, sem reenvio automático, para evitar duplicidade.
 
-`npm run check` valida o caminho e o formato do áudio quando `sundayAudio.enabled` está ativo, sem conectar ao WhatsApp e sem enviar mensagens. `npm run test:sunday` executa o cenário automatizado do domingo com o arquivo padrão, também sem conexão ou envio real.
+`npm run check` valida o caminho e o formato do áudio quando `sundayAudio.enabled` está ativo, sem conectar ao WhatsApp e sem enviar mensagens. `npm run teste-domingo` faz um envio real imediato de GIF, legenda e áudio, mesmo fora do domingo, sem consumir o envio agendado.
 
 ## 3. Colocar os GIFs e verificar
 
@@ -256,11 +256,14 @@ npm start
 
 **`npm run teste` envia uma mensagem REAL para `recipientNumber`.** Não confunda com `npm test`, que executa testes automatizados sem enviar nada.
 
+**`npm run teste-domingo` também envia mensagens REAIS:** o Bom Dia e, em seguida, o áudio configurado para domingo.
+
 | Comando | Comportamento |
 | --- | --- |
 | `npm test` | Testes de código offline, sem envio. |
 | `npm run check` | Prévia, conversão local e validação do áudio configurado, sem envio. |
 | `npm run teste` | Um envio real imediato, mesmo que já tenha enviado hoje. |
+| `npm run teste-domingo` | Um envio real imediato do Bom Dia mais o áudio de domingo. |
 | `npm start` | Agenda normal, no máximo uma tentativa diária. |
 
 Pare o serviço antes de testar, para não abrir duas instâncias:
@@ -272,7 +275,13 @@ cd "$HOME/bom-dia"
 npm run teste
 ```
 
-O comando conecta com a sessão já salva, sorteia o próximo GIF e a próxima frase, exibe a legenda no terminal e tenta enviar uma única mensagem. Depois do retorno do Baileys, mantém a conexão aberta por até **90 segundos**, aguardando confirmação. Só anuncia entrega confirmada quando recebe um recibo do destinatário. Uma confirmação apenas do servidor é exibida como tal, sem afirmar que chegou ao contato. Respeita `captionMode`: no padrão `random` sorteia; se você tiver escolhido `fixed`, usa `caption`. Ignora o horário, `enabled` e o limite diário somente nesta execução explícita. Não precisa alterar o `config.json` nem apagar o histórico.
+Para testar agora o fluxo completo de domingo, independentemente do dia atual:
+
+```bash
+npm run teste-domingo
+```
+
+Os dois comandos conectam com a sessão já salva, sorteiam o próximo GIF e a próxima frase e exibem a legenda no terminal. `npm run teste` envia somente o Bom Dia; `npm run teste-domingo` envia o Bom Dia e depois o áudio. Após o retorno do Baileys, a conexão fica aberta por até **90 segundos**, aguardando confirmação de cada mensagem enviada. Só anuncia entrega confirmada quando recebe os recibos do destinatário. Uma confirmação apenas do servidor é exibida como tal, sem afirmar que chegou ao contato. Ambos respeitam `captionMode`, ignoram o horário, o `enabled` geral e o limite diário nesta execução explícita. O teste de domingo exige `sundayAudio.enabled: true` e um arquivo válido, como já vem no exemplo. Não apague o histórico.
 
 Os testes ficam em `testHistory` no `data/state.json` e aparecem separados em `npm run history`. **Consomem os ciclos de GIFs e frases**, mas não alteram os registros agendados: se o envio diário já ocorreu, continua bloqueado; se ainda não ocorreu, poderá acontecer normalmente no horário. Ao executar o comando novamente, você autoriza outro envio extra. Falhas não disparam outra tentativa automática; confira o histórico e a conversa antes de repetir um teste incerto. Sem conclusão, o teste encerra após aproximadamente cinco minutos, mais até dez segundos para finalizar.
 
@@ -283,7 +292,7 @@ sv up bom-dia
 sv status bom-dia
 ```
 
-Se estiver rodando `npm start` manualmente, encerre com Ctrl+C antes de executar `npm run teste`. Um arquivo `data/PAUSED` continua exigindo corrigir a causa; o teste não ignora pausas por erro de sessão ou de persistência.
+Se estiver rodando `npm start` manualmente, encerre com Ctrl+C antes de executar `npm run teste` ou `npm run teste-domingo`. Um arquivo `data/PAUSED` continua exigindo corrigir a causa; os testes não ignoram pausas por erro de sessão ou de persistência.
 
 Depois de conferir, encerre com Ctrl+C e instale o serviço:
 
