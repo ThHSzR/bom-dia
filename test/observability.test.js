@@ -53,5 +53,5 @@ test('visualizacao le logs novos, antigos e do supervisor sem quebrar linhas', (
   assert.match(offlineLine, /\x1b\[31mconexao=offline\x1b\[0m/);
 
   const errorLine = formatLogLine(JSON.stringify({ atLocal: '2026-09-18 07:00:00', event: 'falha_preparacao', error: 'boom' }));
-  assert.match(errorLine, /^\x1b\[31m.*falha_preparacao.*boom.*\x1b\[0m$/);
+  assert.match(errorLine, /^\x1b\[33m\[2026-09-18 07:00:00\]\x1b\[0m \x1b\[31mfalha_preparacao.*boom.*\x1b\[0m$/);
 });
