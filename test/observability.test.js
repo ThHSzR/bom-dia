@@ -37,13 +37,14 @@ test('checagem detalhada e agenda concordam na janela e no fuso', () => {
 test('visualizacao le logs novos, antigos e do supervisor sem quebrar linhas', () => {
   const raw = JSON.stringify({ at: '2026-09-18T19:30:00Z', atLocal: '2026-09-18 16:30:00',
     event: 'sorteio', caption: 'Bom dia\nCafe!' });
-  assert.match(formatLogLine(raw), /^\[2026-09-18 16:30:00\] sorteio/);
+  assert.match(formatLogLine(raw), /^\x1b\[33m\[2026-09-18 16:30:00\]\x1b\[0m sorteio/);
   assert.equal(formatLogLine(raw).includes('\n'), false);
   assert.equal(formatLogLine('2026-09-18 19:30:00 ' + raw), formatLogLine(raw));
-  assert.match(formatLogLine(JSON.stringify({ at: 'UTC', event: 'antigo' })), /^\[UTC\]/);
+  assert.match(formatLogLine(JSON.stringify({ at: 'UTC', event: 'antigo' })), /^\x1b\[33m\[UTC\]\x1b\[0m/);
   assert.equal(formatLogLine('erro simples'), 'erro simples');
   assert.equal(formatLogLine('{incompleto'), '{incompleto');
   const decision = inspectSchedule(new Date('2026-09-18T10:00:00Z'), config, emptyState(), { online: true });
-  assert.match(formatLogLine(JSON.stringify({ atLocal: '2026-09-18 07:00:00', event: 'verificacao_horario', ...decision })),
-    /HORARIO.*programado=07:15.*aguardando horario.*conexao=online/);
+  const scheduleLine = formatLogLine(JSON.stringify({ atLocal: '2026-09-18 07:00:00', event: 'verificacao_horario', ...decision }));
+  assert.match(scheduleLine, /HORARIO.*programado=07:15.*aguardando horario/);
+  assert.match(scheduleLine, /\x1b\[32mconexao=online\x1b\[0m/);
 });
