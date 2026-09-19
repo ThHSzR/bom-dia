@@ -47,4 +47,11 @@ test('visualizacao le logs novos, antigos e do supervisor sem quebrar linhas', (
   const scheduleLine = formatLogLine(JSON.stringify({ atLocal: '2026-09-18 07:00:00', event: 'verificacao_horario', ...decision }));
   assert.match(scheduleLine, /HORARIO.*programado=07:15.*aguardando horario/);
   assert.match(scheduleLine, /\x1b\[32mconexao=online\x1b\[0m/);
+
+  const offlineLine = formatLogLine(JSON.stringify({ atLocal: '2026-09-18 07:00:00', event: 'verificacao_horario',
+    ...inspectSchedule(new Date('2026-09-18T10:00:00Z'), config, emptyState(), { online: false }) }));
+  assert.match(offlineLine, /\x1b\[31mconexao=offline\x1b\[0m/);
+
+  const errorLine = formatLogLine(JSON.stringify({ atLocal: '2026-09-18 07:00:00', event: 'falha_preparacao', error: 'boom' }));
+  assert.match(errorLine, /^\x1b\[31m.*falha_preparacao.*boom.*\x1b\[0m$/);
 });
