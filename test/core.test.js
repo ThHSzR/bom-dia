@@ -10,7 +10,7 @@ const c = { enabled: true, ownerNumber: '5511999999999', recipientNumber: '55119
   time: '07:15', timeZone: 'America/Sao_Paulo', catchUpMinutes: 120, caption: 'Bom dia!', maxVideoSeconds: 12 };
 const files = ['a', 'b', 'c'].map(hash => ({ name: hash + '.gif', hash }));
 test('configuracao rejeita horario, fuso, grupo, numero e limites invalidos', () => {
-  assert.equal(validateConfig(c), c);
+  assert.deepEqual(validateConfig(c).sundayAudio, { enabled: true, file: 'audio/abencoa-senhor.mp3' });
   for (const change of [{ time: '24:00' }, { timeZone: 'Nao/Existe' },
     { recipientNumber: '123@g.us' }, { ownerNumber: '+5511999999999' },
     { catchUpMinutes: -1 }, { maxVideoSeconds: 0 }, { caption: '' }, { enabled: 'true' }])

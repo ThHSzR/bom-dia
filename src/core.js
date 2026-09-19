@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = fileURLToPath(new URL('../', import.meta.url));
+export const DEFAULT_SUNDAY_AUDIO = Object.freeze({ enabled: true, file: 'audio/abencoa-senhor.mp3' });
 export const paths = {
   config: path.join(ROOT, 'config.json'), gifs: path.join(ROOT, 'gifs'),
   data: path.join(ROOT, 'data'), auth: path.join(ROOT, 'data/auth'),
@@ -33,7 +34,10 @@ export async function readJSON(file, fallback) {
   catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; }
 }
 
-export function validateConfig(c) {
+export function validateConfig(input) {
+  const c = input.sundayAudio === undefined
+    ? { ...input, sundayAudio: { ...DEFAULT_SUNDAY_AUDIO } }
+    : input;
   if (typeof c.enabled !== 'boolean') throw Error('enabled deve ser true ou false.');
   for (const key of ['ownerNumber', 'recipientNumber']) {
     if (typeof c[key] !== 'string' || !/^[1-9]\d{7,14}$/.test(c[key]))
@@ -50,16 +54,14 @@ export function validateConfig(c) {
     throw Error('captionMode deve ser random ou fixed.');
   if (!Number.isInteger(c.maxVideoSeconds) || c.maxVideoSeconds < 1 || c.maxVideoSeconds > 30)
     throw Error('maxVideoSeconds deve ser inteiro entre 1 e 30.');
-  if (c.sundayAudio !== undefined) {
-    if (!c.sundayAudio || typeof c.sundayAudio !== 'object' || Array.isArray(c.sundayAudio))
-      throw Error('sundayAudio deve ser um objeto ou deve ser removido.');
-    if (typeof c.sundayAudio.enabled !== 'boolean') throw Error('sundayAudio.enabled deve ser true ou false.');
-    if (c.sundayAudio.file !== null && c.sundayAudio.file !== undefined &&
-        (typeof c.sundayAudio.file !== 'string' || !c.sundayAudio.file.trim()))
-      throw Error('sundayAudio.file deve ser um caminho local nao vazio, null, ou omitido.');
-    if (c.sundayAudio.enabled && (typeof c.sundayAudio.file !== 'string' || !c.sundayAudio.file.trim()))
-      throw Error('sundayAudio.file deve ser informado quando sundayAudio.enabled for true.');
-  }
+  if (!c.sundayAudio || typeof c.sundayAudio !== 'object' || Array.isArray(c.sundayAudio))
+    throw Error('sundayAudio deve ser um objeto ou deve ser removido para usar o padrao.');
+  if (typeof c.sundayAudio.enabled !== 'boolean') throw Error('sundayAudio.enabled deve ser true ou false.');
+  if (c.sundayAudio.file !== null && c.sundayAudio.file !== undefined &&
+      (typeof c.sundayAudio.file !== 'string' || !c.sundayAudio.file.trim()))
+    throw Error('sundayAudio.file deve ser um caminho local nao vazio, null, ou omitido.');
+  if (c.sundayAudio.enabled && (typeof c.sundayAudio.file !== 'string' || !c.sundayAudio.file.trim()))
+    throw Error('sundayAudio.file deve ser informado quando sundayAudio.enabled for true.');
   return c;
 }
 export async function loadConfig() { return validateConfig(await readJSON(paths.config)); }

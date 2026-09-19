@@ -91,7 +91,7 @@ Exemplo (os números abaixo são fictícios):
 | `captionMode` | `random` sorteia frases; é o padrão também quando o campo não existe. `fixed` usa a legenda antiga. |
 | `caption` | Legenda usada no modo `fixed`, de 1 a 1000 caracteres. Mantenha o campo mesmo usando `random`. |
 | `maxVideoSeconds` | Aproveita até os primeiros N segundos do GIF, de 1 a 30; padrão 12. |
-| `sundayAudio.enabled` | `true` ativa um áudio extra somente aos domingos, junto com o envio agendado. |
+| `sundayAudio.enabled` | `true` ativa um áudio extra somente aos domingos, junto com o envio agendado. Se o bloco inteiro não existir em uma configuração antiga, o áudio padrão é ativado automaticamente. |
 | `sundayAudio.file` | Caminho do áudio. O padrão versionado é `audio/abencoa-senhor.mp3`; também pode ser um caminho local privado, absoluto ou relativo ao projeto. |
 
 Números devem ser strings com **DDI + DDD + número**, sem `+`, espaços, parênteses ou `@`. Para o Brasil, começam com `55`. Informe o número cadastrado no WhatsApp; o bot consulta o serviço para resolver o endereço do destinatário.
@@ -113,7 +113,7 @@ O repositório já inclui `audio/abencoa-senhor.mp3`, configurado para tocar som
 
 Esse áudio foi incluído no Git por escolha explícita do proprietário do repositório. Para substituí-lo sem publicar o novo arquivo, coloque o áudio em `data/private/` e altere apenas o `config.json`, que já é privado pelo `.gitignore`. Caminhos absolutos também funcionam. Os logs e o histórico registram apenas nome, tipo e tamanho do arquivo.
 
-Formatos aceitos: `.mp3`, `.m4a`, `.aac`, `.ogg`, `.opus` e `.wav`, até 16 MB. Se `sundayAudio.enabled` estiver `false` ou o bloco não existir, domingos continuam enviando apenas o Bom Dia normal. Se estiver `true` e o arquivo estiver ausente, vazio, grande demais ou com extensão não aceita, o bot registra `falha_preparacao`, não envia nada naquela tentativa e tenta novamente depois de 5 minutos enquanto a janela do dia estiver aberta. Se o GIF já tiver sido enviado e o áudio falhar depois disso, o dia fica reservado como `uncertain`, sem reenvio automático, para evitar duplicidade.
+Formatos aceitos: `.mp3`, `.m4a`, `.aac`, `.ogg`, `.opus` e `.wav`, até 16 MB. Configurações antigas sem o bloco `sundayAudio` passam a usar automaticamente o arquivo padrão versionado; para desativar, defina `sundayAudio.enabled` como `false`. Se o áudio ativo estiver ausente, vazio, grande demais ou com extensão não aceita, o bot registra `falha_preparacao`, não envia nada naquela tentativa e tenta novamente depois de 5 minutos enquanto a janela do dia estiver aberta. Se o GIF já tiver sido enviado e o áudio falhar depois disso, o dia fica reservado como `uncertain`, sem reenvio automático, para evitar duplicidade.
 
 `npm run check` valida o caminho e o formato do áudio quando `sundayAudio.enabled` está ativo, sem conectar ao WhatsApp e sem enviar mensagens. `npm run teste-domingo` faz um envio real imediato de GIF, legenda e áudio, mesmo fora do domingo, sem consumir o envio agendado.
 
@@ -281,7 +281,7 @@ Para testar agora o fluxo completo de domingo, independentemente do dia atual:
 npm run teste-domingo
 ```
 
-Os dois comandos conectam com a sessão já salva, sorteiam o próximo GIF e a próxima frase e exibem a legenda no terminal. `npm run teste` envia somente o Bom Dia; `npm run teste-domingo` envia o Bom Dia e depois o áudio. Após o retorno do Baileys, a conexão fica aberta por até **90 segundos**, aguardando confirmação de cada mensagem enviada. Só anuncia entrega confirmada quando recebe os recibos do destinatário. Uma confirmação apenas do servidor é exibida como tal, sem afirmar que chegou ao contato. Ambos respeitam `captionMode`, ignoram o horário, o `enabled` geral e o limite diário nesta execução explícita. O teste de domingo exige `sundayAudio.enabled: true` e um arquivo válido, como já vem no exemplo. Não apague o histórico.
+Os dois comandos conectam com a sessão já salva, sorteiam o próximo GIF e a próxima frase e exibem a legenda no terminal. `npm run teste` envia somente o Bom Dia; `npm run teste-domingo` envia o Bom Dia e depois o áudio. Após o retorno do Baileys, a conexão fica aberta por até **90 segundos**, aguardando confirmação de cada mensagem enviada. Só anuncia entrega confirmada quando recebe os recibos do destinatário. Uma confirmação apenas do servidor é exibida como tal, sem afirmar que chegou ao contato. Ambos respeitam `captionMode`, ignoram o horário, o `enabled` geral e o limite diário nesta execução explícita. O teste de domingo usa o áudio padrão quando o bloco `sundayAudio` não existe, mas respeita uma desativação explícita. Não apague o histórico.
 
 Os testes ficam em `testHistory` no `data/state.json` e aparecem separados em `npm run history`. **Consomem os ciclos de GIFs e frases**, mas não alteram os registros agendados: se o envio diário já ocorreu, continua bloqueado; se ainda não ocorreu, poderá acontecer normalmente no horário. Ao executar o comando novamente, você autoriza outro envio extra. Falhas não disparam outra tentativa automática; confira o histórico e a conversa antes de repetir um teste incerto. Sem conclusão, o teste encerra após aproximadamente cinco minutos, mais até dez segundos para finalizar.
 
