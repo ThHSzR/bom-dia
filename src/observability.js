@@ -32,11 +32,21 @@ export function localTimestamp(date, timeZone) {
 const ANSI = {
   reset: '\x1b[0m',
   yellow: '\x1b[33m',
-  green: '\x1b[32m'
+  green: '\x1b[32m',
+  red: '\x1b[31m'
 };
 
 function yellow(value) { return ANSI.yellow + value + ANSI.reset; }
 function green(value) { return ANSI.green + value + ANSI.reset; }
+function red(value) { return ANSI.red + value + ANSI.reset; }
+
+function isProblem(event, fields) {
+  if (/^(falha|erro|pausado|desconectado|tempo_teste_esgotado)/.test(event)) return true;
+  if (fields.error || fields.confirmationError) return true;
+  if (fields.confirmation === 'rejected' || fields.confirmation === 'unconfirmed') return true;
+  if (fields.status === 'uncertain' || fields.status === 'rejected') return true;
+  return false;
+}
 
 export function formatLogLine(line) {
   try {
@@ -53,13 +63,14 @@ export function formatLogLine(line) {
         dia_ja_reservado: 'hoje ja tem envio/tentativa registrada', antes_do_horario: 'aguardando horario',
         envio_liberado: 'hora de enviar', janela_encerrada: 'janela de hoje encerrada' };
       const timestamp = yellow(`[${atLocal ?? at}]`);
-      const connection = fields.online ? green('conexao=online') : 'conexao=offline';
+      const connection = fields.online ? green('conexao=online') : red('conexao=offline');
       return `${timestamp} HORARIO | programado=${fields.scheduledTime} (${fields.timeZone})` +
         ` | ${reasons[fields.reason] ?? fields.reason} | ${connection}` +
         (fields.previousStatus ? ` | registro=${fields.previousStatus}` : '') +
         (fields.retrySeconds > 0 ? ` | nova tentativa em ${fields.retrySeconds}s` : '');
     }
-    return yellow(`[${atLocal ?? at ?? '?'}]`) + ` ${event} | ` + Object.entries(fields)
+    const rendered = yellow(`[${atLocal ?? at ?? '?'}]`) + ` ${event} | ` + Object.entries(fields)
       .map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(' ');
+    return isProblem(event, fields) ? red(rendered) : rendered;
   } catch { return line; }
 }
