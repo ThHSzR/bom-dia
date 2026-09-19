@@ -69,8 +69,9 @@ export function formatLogLine(line) {
         (fields.previousStatus ? ` | registro=${fields.previousStatus}` : '') +
         (fields.retrySeconds > 0 ? ` | nova tentativa em ${fields.retrySeconds}s` : '');
     }
-    const rendered = yellow(`[${atLocal ?? at ?? '?'}]`) + ` ${event} | ` + Object.entries(fields)
+    const timestamp = yellow(`[${atLocal ?? at ?? '?'}]`);
+    const body = `${event} | ` + Object.entries(fields)
       .map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(' ');
-    return isProblem(event, fields) ? red(rendered) : rendered;
+    return timestamp + ' ' + (isProblem(event, fields) ? red(body) : body);
   } catch { return line; }
 }
