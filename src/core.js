@@ -34,15 +34,29 @@ export async function readJSON(file, fallback) {
   catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; }
 }
 
+function validNumber(number) { return typeof number === 'string' && /^[1-9]\d{7,14}$/.test(number); }
+
 export function validateConfig(input) {
   const c = input.sundayAudio === undefined
     ? { ...input, sundayAudio: { ...DEFAULT_SUNDAY_AUDIO } }
-    : input;
+    : { ...input };
   if (typeof c.enabled !== 'boolean') throw Error('enabled deve ser true ou false.');
-  for (const key of ['ownerNumber', 'recipientNumber']) {
-    if (typeof c[key] !== 'string' || !/^[1-9]\d{7,14}$/.test(c[key]))
-      throw Error(key + ': informe DDI + DDD + numero, somente digitos, entre aspas.');
-  }
+  if (!validNumber(c.ownerNumber))
+    throw Error('ownerNumber: informe DDI + DDD + numero, somente digitos, entre aspas.');
+
+  const recipientNumbers = c.recipientNumbers === undefined
+    ? (c.recipientNumber === undefined ? null : [c.recipientNumber])
+    : c.recipientNumbers;
+  if (!Array.isArray(recipientNumbers) || recipientNumbers.length === 0)
+    throw Error('recipientNumbers deve ser uma lista com pelo menos um numero.');
+  if (!recipientNumbers.every(validNumber))
+    throw Error('recipientNumbers: informe cada numero com DDI + DDD + numero, somente digitos, entre aspas.');
+  if (new Set(recipientNumbers).size !== recipientNumbers.length)
+    throw Error('recipientNumbers nao pode conter numeros duplicados.');
+  c.recipientNumbers = [...recipientNumbers];
+  // Mantem a propriedade antiga normalizada para compatibilidade com integracoes locais existentes.
+  c.recipientNumber = c.recipientNumbers[0];
+
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(c.time)) throw Error('time deve ser HH:MM, de 00:00 a 23:59.');
   if (typeof c.timeZone !== 'string') throw Error('timeZone deve ser um fuso IANA.');
   new Intl.DateTimeFormat('en', { timeZone: c.timeZone }).format();
@@ -146,8 +160,10 @@ export function reserve(state, selection, day, recipient, id, manualTest = false
     next.captionRotation.used.push(caption.hash);
     next.captionRotation.lastHash = caption.hash;
   }
+  const recipients = Array.isArray(recipient) ? [...recipient] : [recipient];
   const history = manualTest ? (next.testHistory ??= []) : next.history;
-  history.push({ day, id, recipient, mode: manualTest ? 'test' : 'scheduled', file: selection.gif.name, hash: selection.gif.hash,
+  history.push({ day, id, recipient: recipients[0], ...(recipients.length > 1 ? { recipients } : {}),
+    mode: manualTest ? 'test' : 'scheduled', file: selection.gif.name, hash: selection.gif.hash,
     ...(caption ? { caption: caption.text, captionHash: caption.hash,
       captionCycle: caption.fixed ? null : next.captionRotation.cycle } : {}),
     ...(selection.sundayAudio ? { sundayAudio: selection.sundayAudio } : {}),
@@ -169,6 +185,7 @@ export async function dispatch({ state, selection, day, recipient, id, persist, 
       record.confirmationError = message.confirmationError;
       record.confirmationCheckedAt = message.confirmationCheckedAt;
     }
+    if (Array.isArray(message.deliveries)) record.deliveries = message.deliveries;
     if (message.sundayAudio) record.sundayAudio = { ...(record.sundayAudio ?? {}), ...message.sundayAudio };
     if (message.confirmation === 'unconfirmed' || message.confirmation === 'rejected')
       throw Error(message.confirmationError ?? 'Sem confirmacao do WhatsApp dentro da janela de espera.');
