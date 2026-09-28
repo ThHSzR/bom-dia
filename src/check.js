@@ -15,7 +15,7 @@ try {
   const sundayAudio = config.sundayAudio?.enabled ? await prepareAudio(config.sundayAudio.file) : null;
   console.log(JSON.stringify({ ok: true, enabled: config.enabled, time: config.time,
     timeZone: config.timeZone, localNow: clockParts(new Date(), config.timeZone),
-    recipientEnding: config.recipientNumber.slice(-4), uniqueGifs: files.length,
+    recipientEndings: config.recipientNumbers.map(number => number.slice(-4)), uniqueGifs: files.length,
     conversionTest: selected.gif.name, sundayAudio: sundayAudio ? {
       file: sundayAudio.name, mimetype: sundayAudio.mimetype, size: sundayAudio.size
     } : null, historyDays: state.history.length }, null, 2));
